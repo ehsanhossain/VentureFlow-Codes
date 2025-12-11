@@ -227,6 +227,14 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <CreateEmployee />
+          </ProtectedRoute>
+        }
+      />
     </Routes>
   );
 };

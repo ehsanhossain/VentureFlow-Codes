@@ -44,7 +44,7 @@ const ProfileDropdown: React.FC = () => {
     const fetchUser = async () => {
       try {
         const { data } = await api.get("/api/user");
-       
+
 
         setUser(data.user);
         setEmployee(data.employee);
@@ -53,7 +53,7 @@ const ProfileDropdown: React.FC = () => {
         //   label: team.name,
         //   value: String(team.id),
         // }));
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (_) {
         showAlert({ type: "error", message: "Failed to fetch teams" });
 
@@ -78,8 +78,8 @@ const ProfileDropdown: React.FC = () => {
             employee && employee.image
               ? `${baseURL}/storage/${employee.image}`
               : `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                  user?.name || "User"
-                )}`
+                user?.name || "User"
+              )}`
           }
           alt="Profile"
           className="w-8 h-8 rounded-full"
@@ -139,9 +139,7 @@ const ProfileDropdown: React.FC = () => {
             <span
               className="text-[#30313D] text-[15.1793212890625px] font-sf font-medium"
               onClick={() => {
-              if (employee?.id) {
-                navigate(`/employee/details/${employee.id}`);
-              }
+                navigate('/profile');
               }}
               style={{ cursor: "pointer" }}
             >

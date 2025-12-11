@@ -65,6 +65,9 @@ class SellersCompanyOverview extends Model
         'hq_address' => 'array',
         'seller_phone' => 'array',
         'no_pic_needed' => 'boolean',
+        'shareholder_name' => 'array',
+        'reason_ma' => 'array',
+        'status' => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

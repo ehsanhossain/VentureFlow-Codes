@@ -43,6 +43,10 @@ class EmployeeController extends Controller
             })
             ->paginate(10);
 
+        if (!$request->user()->hasRole('System Admin')) {
+             return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         return response()->json([
             'data' => $employees->items(),
             'meta' => [
@@ -120,8 +124,11 @@ class EmployeeController extends Controller
                 $userData
             );
 
-            if (!empty($data['role'])) {
+            if ($request->user()->hasRole('System Admin') && !empty($data['role'])) {
                 $user->syncRoles([$data['role']]);
+            } elseif (!$user->hasAnyRole(Role::all())) {
+                 // Default to Staff if no role exists and not set by Admin
+                 $user->assignRole('Staff');
             }
 
             $data['user_id'] = $user->id;

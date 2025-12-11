@@ -230,12 +230,12 @@ const CompanyOverview: React.FC = () => {
     }
 
     const selectedIds = selectedIndustries.map((ind) => ind.id);
-   
+
     const subs = industries
       .filter((ind) => selectedIds.includes(ind.id))
       .flatMap((ind) => ind.sub_industries || []);
 
- 
+
     const formattedSubs = subs.map((sub: ApiIndustry) => ({
       id: sub.id,
       name: sub.name,
@@ -509,15 +509,23 @@ const CompanyOverview: React.FC = () => {
     }
     setValue('expectedTransactionTimeline', transactionDateValue);
     setValue('projectStartDate', projectStartDateValue);
-    setValue('reason_for_mna', companyData.reason_ma || []);
-    setValue('status', companyData.status || []);
+    setValue('reason_for_mna', Array.isArray(companyData.reason_ma) ? companyData.reason_ma : (typeof companyData.reason_ma === 'string' ? [companyData.reason_ma] : []));
+
+    const statusVal = companyData.status;
+    setValue('status', Array.isArray(statusVal) ? statusVal : (statusVal ? [String(statusVal)] : []));
 
     if (companyData.shareholder_name) {
-      const parsedShareholders = JSON.parse(companyData.shareholder_name);
-      replaceShareholders(parsedShareholders);
+      try {
+        const parsedShareholders = JSON.parse(companyData.shareholder_name);
+        if (Array.isArray(parsedShareholders)) {
+          replaceShareholders(parsedShareholders);
+        }
+      } catch (e) {
+        console.warn('Failed to parse shareholder_name', e);
+      }
     }
 
-    if (companyData.hq_address) {
+    if (companyData.hq_address && Array.isArray(companyData.hq_address)) {
       replaceAddress(companyData.hq_address);
     }
 
@@ -534,7 +542,7 @@ const CompanyOverview: React.FC = () => {
   }, [companyData, countries, employees, id, setValue, replaceAddress, replaceShareholders]);
 
   const onSubmit = async (data: FormValues) => {
-   
+
     const formData = new FormData();
 
     const normalizeToArray = (value: unknown) => (Array.isArray(value) ? value : value ? [value] : []);
@@ -634,7 +642,7 @@ const CompanyOverview: React.FC = () => {
         },
       });
 
-    
+
       localStorage.setItem('seller_id', response.data.data);
       showAlert({ type: 'success', message: 'Draft Saved' });
       setActiveTab('financial-details');
@@ -754,7 +762,7 @@ const CompanyOverview: React.FC = () => {
         },
       });
 
-   
+
       localStorage.setItem('seller_id', response.data.data);
       showAlert({ type: 'success', message: 'Draft Saved' });
     } catch (error) {
@@ -873,7 +881,7 @@ const CompanyOverview: React.FC = () => {
         },
       });
 
-   
+
       localStorage.setItem('seller_id', response.data.data);
       showAlert({ type: 'success', message: 'Draft Saved' });
       navigate('/seller-portal');
@@ -1332,14 +1340,12 @@ const CompanyOverview: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => field.onChange(!field.value)}
-                      className={`relative w-12 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${
-                        field.value ? 'bg-green-600' : 'bg-gray-300'
-                      }`}
+                      className={`relative w-12 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${field.value ? 'bg-green-600' : 'bg-gray-300'
+                        }`}
                     >
                       <div
-                        className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${
-                          field.value ? 'translate-x-4' : 'translate-x-0'
-                        }`}
+                        className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${field.value ? 'translate-x-4' : 'translate-x-0'
+                          }`}
                       />
                     </button>
                   </div>
@@ -1797,57 +1803,57 @@ const CompanyOverview: React.FC = () => {
               control={control}
               label="Seller ID"
               description="The Seller ID (e.g., TH-S-1) signifies the location (TH = Thailand), the entity type (S = Seller), and a unique sequential number (1 = first seller from Thailand)."
-              onSave={(_val) => {}}
+              onSave={(_val) => { }}
               iconSrc={
                 <svg
-                    width="20"
-                    height="22"
-                    viewBox="0 0 20 22"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="22"
+                  viewBox="0 0 20 22"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M14.8351 5.6896H17.9426C18.1306 5.68979 18.3117 5.75973 18.4511 5.88588C18.5904 6.01203 18.6779 6.1854 18.6967 6.37241L19.1595 11.0003H17.6331L17.2537 7.20694H14.8351V9.48295C14.8351 9.68417 14.7552 9.87714 14.6129 10.0194C14.4706 10.1617 14.2776 10.2416 14.0764 10.2416C13.8752 10.2416 13.6822 10.1617 13.54 10.0194C13.3977 9.87714 13.3178 9.68417 13.3178 9.48295V7.20694H7.24839V9.48295C7.24839 9.68417 7.16846 9.87714 7.02618 10.0194C6.8839 10.1617 6.69093 10.2416 6.48972 10.2416C6.2885 10.2416 6.09553 10.1617 5.95325 10.0194C5.81098 9.87714 5.73104 9.68417 5.73104 9.48295V7.20694H3.31088L2.09701 19.3457H10.2831V20.863H1.25792C1.15196 20.8629 1.04719 20.8406 0.950367 20.7975C0.853546 20.7545 0.766819 20.6916 0.695774 20.613C0.62473 20.5344 0.570942 20.4417 0.537878 20.3411C0.504814 20.2404 0.493206 20.1339 0.503803 20.0285L1.86941 6.37241C1.88821 6.1854 1.97575 6.01203 2.11507 5.88588C2.25439 5.75973 2.43558 5.68979 2.62353 5.6896H5.73104V5.16005C5.73104 2.52898 7.75821 0.378906 10.2831 0.378906C12.8079 0.378906 14.8351 2.52898 14.8351 5.16005V5.69112V5.6896ZM13.3178 5.6896V5.16005C13.3178 3.34834 11.9491 1.89625 10.2831 1.89625C8.61703 1.89625 7.24839 3.34834 7.24839 5.16005V5.69112H13.3178V5.6896ZM18.0928 17.1607L16.3524 15.4218V20.863C16.3524 21.0642 16.2725 21.2572 16.1302 21.3995C15.9879 21.5418 15.795 21.6217 15.5938 21.6217C15.3926 21.6217 15.1996 21.5418 15.0573 21.3995C14.915 21.2572 14.8351 21.0642 14.8351 20.863V15.4218L13.0962 17.1607C13.0262 17.2332 12.9425 17.291 12.85 17.3307C12.7574 17.3705 12.6578 17.3914 12.5571 17.3923C12.4564 17.3932 12.3565 17.374 12.2632 17.3358C12.17 17.2977 12.0853 17.2413 12.0141 17.1701C11.9428 17.0989 11.8865 17.0142 11.8483 16.9209C11.8102 16.8277 11.791 16.7278 11.7919 16.6271C11.7928 16.5263 11.8137 16.4268 11.8534 16.3342C11.8932 16.2416 11.951 16.1579 12.0235 16.0879L15.0581 13.0533C15.2004 12.911 15.3934 12.8311 15.5945 12.8311C15.7957 12.8311 15.9886 12.911 16.1309 13.0533L19.1656 16.0879C19.238 16.1579 19.2958 16.2416 19.3356 16.3342C19.3754 16.4268 19.3963 16.5263 19.3972 16.6271C19.398 16.7278 19.3789 16.8277 19.3407 16.9209C19.3026 17.0142 19.2462 17.0989 19.175 17.1701C19.1038 17.2413 19.0191 17.2977 18.9258 17.3358C18.8326 17.374 18.7327 17.3932 18.6319 17.3923C18.5312 17.3914 18.4316 17.3705 18.3391 17.3307C18.2465 17.291 18.1628 17.2332 18.0928 17.1607Z"
+                    fill="white"
+                  />
+                </svg>
+              }
+            />
+
+            <div className="flex self-stretch justify-start items-center flex-col gap-[29px] relative mt-[101px]">
+              <div className="bg-white flex flex-row justify-center w-full">
+                <div className="w-[190px] justify-center gap-[15px] left-[20px] flex flex-col items-center relative">
+                  <Controller
+                    name="profilePicture"
+                    control={control}
+                    render={({
+                      field: {
+                        ref,
+                        value: _value,
+                        ...remainingField
+                      },
+                    }) => (
+                      <input
+                        type="file"
+                        {...remainingField}
+                        ref={(e) => {
+                          ref(e);
+                          fileInputRef.current = e;
+                        }}
+                        onChange={(e) => {
+                          remainingField.onChange(e);
+                          handleFileChange(e);
+                        }}
+                        accept="image/jpeg,image/png"
+                        className="hidden"
+                      />
+                    )}
+                  />
+
+                  <div
+                    className="w-[180px] h-[180px] rounded-[90px] border-[1.05px] border-dashed border-[#064771] bg-white cursor-pointer overflow-hidden flex items-center justify-center"
+                    onClick={() => fileInputRef.current?.click()}
                   >
-                    <path
-                      d="M14.8351 5.6896H17.9426C18.1306 5.68979 18.3117 5.75973 18.4511 5.88588C18.5904 6.01203 18.6779 6.1854 18.6967 6.37241L19.1595 11.0003H17.6331L17.2537 7.20694H14.8351V9.48295C14.8351 9.68417 14.7552 9.87714 14.6129 10.0194C14.4706 10.1617 14.2776 10.2416 14.0764 10.2416C13.8752 10.2416 13.6822 10.1617 13.54 10.0194C13.3977 9.87714 13.3178 9.68417 13.3178 9.48295V7.20694H7.24839V9.48295C7.24839 9.68417 7.16846 9.87714 7.02618 10.0194C6.8839 10.1617 6.69093 10.2416 6.48972 10.2416C6.2885 10.2416 6.09553 10.1617 5.95325 10.0194C5.81098 9.87714 5.73104 9.68417 5.73104 9.48295V7.20694H3.31088L2.09701 19.3457H10.2831V20.863H1.25792C1.15196 20.8629 1.04719 20.8406 0.950367 20.7975C0.853546 20.7545 0.766819 20.6916 0.695774 20.613C0.62473 20.5344 0.570942 20.4417 0.537878 20.3411C0.504814 20.2404 0.493206 20.1339 0.503803 20.0285L1.86941 6.37241C1.88821 6.1854 1.97575 6.01203 2.11507 5.88588C2.25439 5.75973 2.43558 5.68979 2.62353 5.6896H5.73104V5.16005C5.73104 2.52898 7.75821 0.378906 10.2831 0.378906C12.8079 0.378906 14.8351 2.52898 14.8351 5.16005V5.69112V5.6896ZM13.3178 5.6896V5.16005C13.3178 3.34834 11.9491 1.89625 10.2831 1.89625C8.61703 1.89625 7.24839 3.34834 7.24839 5.16005V5.69112H13.3178V5.6896ZM18.0928 17.1607L16.3524 15.4218V20.863C16.3524 21.0642 16.2725 21.2572 16.1302 21.3995C15.9879 21.5418 15.795 21.6217 15.5938 21.6217C15.3926 21.6217 15.1996 21.5418 15.0573 21.3995C14.915 21.2572 14.8351 21.0642 14.8351 20.863V15.4218L13.0962 17.1607C13.0262 17.2332 12.9425 17.291 12.85 17.3307C12.7574 17.3705 12.6578 17.3914 12.5571 17.3923C12.4564 17.3932 12.3565 17.374 12.2632 17.3358C12.17 17.2977 12.0853 17.2413 12.0141 17.1701C11.9428 17.0989 11.8865 17.0142 11.8483 16.9209C11.8102 16.8277 11.791 16.7278 11.7919 16.6271C11.7928 16.5263 11.8137 16.4268 11.8534 16.3342C11.8932 16.2416 11.951 16.1579 12.0235 16.0879L15.0581 13.0533C15.2004 12.911 15.3934 12.8311 15.5945 12.8311C15.7957 12.8311 15.9886 12.911 16.1309 13.0533L19.1656 16.0879C19.238 16.1579 19.2958 16.2416 19.3356 16.3342C19.3754 16.4268 19.3963 16.5263 19.3972 16.6271C19.398 16.7278 19.3789 16.8277 19.3407 16.9209C19.3026 17.0142 19.2462 17.0989 19.175 17.1701C19.1038 17.2413 19.0191 17.2977 18.9258 17.3358C18.8326 17.374 18.7327 17.3932 18.6319 17.3923C18.5312 17.3914 18.4316 17.3705 18.3391 17.3307C18.2465 17.291 18.1628 17.2332 18.0928 17.1607Z"
-                      fill="white"
-                    />
-                  </svg>
-                }
-              />
-
-              <div className="flex self-stretch justify-start items-center flex-col gap-[29px] relative mt-[101px]">
-                <div className="bg-white flex flex-row justify-center w-full">
-                  <div className="w-[190px] justify-center gap-[15px] left-[20px] flex flex-col items-center relative">
-                    <Controller
-                      name="profilePicture"
-                      control={control}
-                      render={({
-                        field: {
-                          ref,
-                          value: _value,
-                          ...remainingField
-                        },
-                      }) => (
-                        <input
-                          type="file"
-                          {...remainingField}
-                          ref={(e) => {
-                            ref(e);
-                            fileInputRef.current = e;
-                          }}
-                          onChange={(e) => {
-                            remainingField.onChange(e);
-                            handleFileChange(e);
-                          }}
-                          accept="image/jpeg,image/png"
-                          className="hidden"
-                        />
-                      )}
-                    />
-
-                    <div
-                      className="w-[180px] h-[180px] rounded-[90px] border-[1.05px] border-dashed border-[#064771] bg-white cursor-pointer overflow-hidden flex items-center justify-center"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
                     {previewUrl ? (
                       <img
                         src={previewUrl}

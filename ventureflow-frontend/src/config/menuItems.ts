@@ -19,6 +19,7 @@ export interface MenuItem {
   label: string;
   path?: string;
   subItems?: { label: string; path: string; icon?: React.ComponentType<React.SVGProps<SVGSVGElement>> }[];
+  roles?: string[];
 }
 
 export const menuItems: MenuItem[] = [
@@ -35,7 +36,7 @@ export const menuItems: MenuItem[] = [
   { icon: CatalystIcon, label: "Deal Pipeline", path: "/deal-pipeline" },
   { icon: BuyerPartnerIcon, label: "Partner", path: "/partner-portal" },
   { icon: MatchIcon, label: "Valuation", path: "/match" },
-  { icon: EmployeeIcon, label: "Employee", path: "/employee" },
+  { icon: EmployeeIcon, label: "Employee", path: "/employee", roles: ['System Admin'] },
   { icon: CountryIcon, label: "Country Book", path: "/country" },
   { icon: IndustryIcon, label: "Industry Book", path: "/industry" },
   { icon: CurrencyIcon, label: "Currency", path: "/currency" },

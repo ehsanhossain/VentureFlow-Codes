@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import Breadcrumb from '../../../assets/breadcrumb';
 import MaleIcon from '../icons/MaleIcon';
 import FemaleIcon from '../icons/FemaleIcon';
@@ -12,8 +12,9 @@ import api from '../../../config/api';
 import axios from 'axios';
 import { showAlert } from '../../../components/Alert';
 import { RadioGroup, RadioOption } from '../../../components/RadioGroup';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Country, Dropdown } from '../components/Dropdown';
+import { AuthContext } from '../../../routes/AuthContext';
 type Option = {
   label: string;
   value: string;
@@ -54,7 +55,7 @@ const empStatusOptions = [
 ];
 
 const CreateEmployee: React.FC = () => {
-  
+
   const [designationOptions, setDesignationOptions] = useState<Option[]>([]);
 
   const [companyOptions, setCompanyOptions] = useState<Option[]>([]);
@@ -68,7 +69,7 @@ const CreateEmployee: React.FC = () => {
     const fetchCompanies = async () => {
       try {
         const { data } = await api.get('/api/companies');
-       
+
 
         const options: Option[] = data.data.map((company: { id: number | string; name: string }) => ({
           label: company.name,
@@ -90,13 +91,13 @@ const CreateEmployee: React.FC = () => {
     const fetchDepartments = async () => {
       try {
         const { data } = await api.get('/api/departments');
-       
+
 
         const options: Option[] = data.data.map(
           (department: { id: number | string; name: string }) => ({
-          label: department.name,
-          value: String(department.id),
-        }));
+            label: department.name,
+            value: String(department.id),
+          }));
 
         setDepartmentOptions(options);
       } catch {
@@ -113,7 +114,7 @@ const CreateEmployee: React.FC = () => {
     const fetchBranches = async () => {
       try {
         const { data } = await api.get('/api/branches');
-     
+
 
         const options: Option[] = data.data.map((branch: { id: number | string; name: string }) => ({
           label: branch.name,
@@ -156,13 +157,13 @@ const CreateEmployee: React.FC = () => {
     const fetchDesignations = async () => {
       try {
         const { data } = await api.get('/api/designations');
-     
+
 
         const options: Option[] = data.data.map(
           (designation: { id: number | string; title: string }) => ({
-          label: designation.title,
-          value: String(designation.id),
-        }));
+            label: designation.title,
+            value: String(designation.id),
+          }));
 
         setDesignationOptions(options);
       } catch {
@@ -213,12 +214,12 @@ const CreateEmployee: React.FC = () => {
             svg_icon_url: string;
             alpha_2_code: string;
           }) => ({
-          id: country.id,
-          name: country.name,
-          flagSrc: country.svg_icon_url,
-          status: 'unregistered',
-          alpha: country.alpha_2_code,
-        }));
+            id: country.id,
+            name: country.name,
+            flagSrc: country.svg_icon_url,
+            status: 'unregistered',
+            alpha: country.alpha_2_code,
+          }));
 
         setCountries(formatted);
       } catch {
@@ -229,7 +230,7 @@ const CreateEmployee: React.FC = () => {
     fetchCountries();
   }, []);
 
-  
+
 
   type FileInfo = {
     label: string;
@@ -287,7 +288,15 @@ const CreateEmployee: React.FC = () => {
   } = useForm<FormValues>();
 
   const { id: paramId } = useParams();
-  const id = paramId;
+  const location = useLocation();
+  const context = useContext(AuthContext);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const currentUser = context?.user as any;
+  const isProfilePage = location.pathname === '/profile';
+
+  // If on profile page, use the logged-in user's employee ID, otherwise use param ID
+  const id = isProfilePage ? currentUser?.employee?.id : paramId;
+  const canEditRole = currentUser?.role === 'System Admin' && !isProfilePage;
 
   interface EmployeeData {
     first_name: string;
@@ -328,7 +337,7 @@ const CreateEmployee: React.FC = () => {
       try {
         const response = await api.get(`/api/employees/${id}`);
         setemployeeData(response.data);
-      
+
       } catch {
         showAlert({ type: "error", message: "Failed to fetch company data" });
       }
@@ -353,7 +362,7 @@ const CreateEmployee: React.FC = () => {
       const selectedCompany = companyOptions.find(
         (opt) => opt.value === String(employeeData.company.id)
       );
-   
+
       setValue('company', selectedCompany || null);
     }
 
@@ -412,7 +421,7 @@ const CreateEmployee: React.FC = () => {
 
   const onSubmit = async (data: FormValues) => {
     try {
-     
+
       const formData = new FormData();
 
       if (id) {
@@ -1126,12 +1135,12 @@ const CreateEmployee: React.FC = () => {
                             id
                               ? {}
                               : {
-                                  required: 'Password is required',
-                                  minLength: {
-                                    value: 6,
-                                    message: 'Password must be at least 6 characters long',
-                                  },
-                                }
+                                required: 'Password is required',
+                                minLength: {
+                                  value: 6,
+                                  message: 'Password must be at least 6 characters long',
+                                },
+                              }
                           )}
                           className="h-10 w-full pl-12 pr-10 bg-white rounded-md border border-slate-300 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                           placeholder="••••••••••"
@@ -1188,30 +1197,32 @@ const CreateEmployee: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex flex-col w-full sm:w-[459px] gap-4">
-                    <label className="inline-flex items-center gap-1.5">
-                      <span className="font-bold text-[#eb1c41] text-base">*</span>
-                      <span className="font-medium text-[#30313d] text-base font-poppins">
-                        System-wide Permission
-                      </span>
-                    </label>
-                    <Controller
-                      name="role"
-                      control={control}
-                      rules={{ required: 'Role is required' }}
-                      render={({ field }) => (
-                        <RadioGroup
-                          options={roleOptions}
-                          value={field.value}
-                          onChange={field.onChange}
-                        />
-                      )}
-                    />
+                  {canEditRole && (
+                    <div className="flex flex-col w-full sm:w-[459px] gap-4">
+                      <label className="inline-flex items-center gap-1.5">
+                        <span className="font-bold text-[#eb1c41] text-base">*</span>
+                        <span className="font-medium text-[#30313d] text-base font-poppins">
+                          System-wide Permission
+                        </span>
+                      </label>
+                      <Controller
+                        name="role"
+                        control={control}
+                        rules={{ required: 'Role is required' }}
+                        render={({ field }) => (
+                          <RadioGroup
+                            options={roleOptions}
+                            value={field.value}
+                            onChange={field.onChange}
+                          />
+                        )}
+                      />
 
-                    {errors.role && (
-                      <p className="text-red-500 text-sm mt-1">{errors.role.message}</p>
-                    )}
-                  </div>
+                      {errors.role && (
+                        <p className="text-red-500 text-sm mt-1">{errors.role.message}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -24,7 +24,18 @@ class AuthController extends Controller
 
         return response()->json([
             'user' => $user,
+            'role' => $user->getRoleNames()->first(),
             'token' => $token
+        ]);
+    }
+
+    public function user(Request $request) {
+        $user = $request->user();
+        $employee = \App\Models\Employee::where('user_id', $user->id)->first();
+        return response()->json([
+            'user' => $user,
+            'role' => $user->getRoleNames()->first(),
+            'employee' => $employee
         ]);
     }
 

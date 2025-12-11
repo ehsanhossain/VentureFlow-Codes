@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { menuItems } from "../config/menuItems";
 import { Label } from "../assets/label";
+import { AuthContext } from "../routes/AuthContext";
 
 interface SidebarProps {
   sidebarExpanded: boolean;
@@ -17,6 +18,15 @@ export function Sidebar({
 }: SidebarProps) {
   const location = useLocation();
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
+  const context = useContext(AuthContext);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userRole = (context?.user as any)?.role;
+
+  const filteredMenuItems = menuItems.filter((item) => {
+    if (!item.roles) return true;
+    return item.roles.includes(userRole);
+  });
 
   const isSubItemActive = (subItems: any[]) => {
     return subItems.some((sub) => location.pathname === sub.path);
@@ -51,7 +61,7 @@ export function Sidebar({
         {/* Navigation Menu */}
         <nav className="flex-1 flex items-center justify-center overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
           <div className="space-y-1 w-full px-2 py-2">
-            {menuItems.map((item, index) => {
+            {filteredMenuItems.map((item, index) => {
               const hasSubItems = item.subItems && item.subItems.length > 0;
               const isActive =
                 location.pathname === item.path ||
@@ -192,4 +202,3 @@ export function Sidebar({
     </aside>
   );
 }
-

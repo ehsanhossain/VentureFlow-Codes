@@ -17,7 +17,7 @@ class DatabaseSeeder extends Seeder
         // User::factory(10)->create();
 
         // Create admin user for testing
-        User::firstOrCreate(
+        $admin = User::firstOrCreate(
             ['email' => 'admin@ventureflow.com'],
             [
                 'name' => 'Admin User',
@@ -25,6 +25,9 @@ class DatabaseSeeder extends Seeder
                 'password' => Hash::make('admin123'),
             ]
         );
+
+        $this->call(RolesTableSeeder::class);
+        $admin->assignRole('System Admin');
 
         $this->call(CountrySeeder::class);
         // $this->call(EmployeeSeeder::class);
