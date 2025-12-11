@@ -1,0 +1,7 @@
+dist
+node_modules
+build
+public
+src/**/*.bk.tsx
+src/**/*.bak.tsx
+tailwind.config.js

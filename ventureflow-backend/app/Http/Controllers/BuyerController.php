@@ -1,0 +1,1304 @@
+<?php
+
+namespace App\Http\Controllers;
+use App\Models\Buyer;
+use App\Models\BuyersCompanyOverview;
+use App\Models\BuyersTargetPreferences;
+use App\Models\FileFolder;
+use Illuminate\Http\Request;
+use App\Models\BuyersFinancialDetails;
+use App\Models\BuyersPartnershipDetails;
+use App\Models\BuyersTeaserCenters;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use DB;
+use Carbon\Carbon;
+
+
+class BuyerController extends Controller
+{
+
+
+    public function index(Request $request)
+    {
+        // --- Retrieve all input parameters ---
+        $search = $request->input('search', '');
+        $country = $request->input('country');
+        $registeredAfter = $request->input('registered_after');
+        $status = $request->input('status');
+        $source = $request->input('source');
+        $broaderIndustries = $request->input('broader_industries', []);
+        $priorityIndustries = $request->input('priority_industries', []);
+        $showOnlyPinned = $request->input('show_only_pinned');
+        $sort = $request->input('sort');
+
+        // --- Retrieve range-based parameters ---
+        $acquisitionPreference = $request->input('acquisition_preference', []);
+        $ebitdaRequirements = $request->input('ebitda_requirements', []);
+        $expectedInvestmentAmount = $request->input('expected_investment_amount', []);
+
+        // --- Build the base query ---
+        $query = Buyer::with([
+            'companyOverview',
+            'targetPreference',
+            'financialDetails',
+            'partnershipDetails',
+            'teaserCenter',
+        ])
+            // --- General search filter ---
+            ->when($search, function ($query) use ($search) {
+                $query->where(function ($query) use ($search) {
+                    $query->where('buyer_id', 'like', "%{$search}%")
+                        ->orWhereHas('companyOverview', function ($q) use ($search) {
+                            $q->where('reg_name', 'like', "%{$search}%");
+                        });
+                });
+            })
+            // --- Filter by country ---
+            ->when($country, function ($query) use ($country) {
+                $query->whereHas('companyOverview', function ($q) use ($country) {
+                    $q->where('hq_country', $country);
+                });
+            })
+            // --- Filter by registration date ---
+            ->when($registeredAfter, function ($query) use ($registeredAfter) {
+                try {
+                    $date = Carbon::createFromFormat('Y-m-d', $registeredAfter, 'Asia/Dhaka')
+                        ->endOfDay()
+                        ->setTimezone('UTC');
+                    $query->where('created_at', '<=', $date);
+                } catch (\Exception $e) {
+                    // Ignore invalid date format
+                }
+            })
+            // --- Filter by status ---
+            ->when(!empty($status), function ($query) use ($status) {
+                $query->whereHas('companyOverview', function ($q) use ($status) {
+                    $q->where('status', 'LIKE', trim($status));
+                });
+            })
+
+            // --- Filter by source ---
+            ->when($source, function ($query) use ($source) {
+                $query->whereHas('partnershipDetails', function ($q) use ($source) {
+                    $q->where('partnership_affiliation', $source);
+                });
+            })
+            // --- Filter by broader target industries (JSON) ---
+            ->when(!empty($broaderIndustries), function ($query) use ($broaderIndustries) {
+                $query->whereHas('targetPreference', function ($q) use ($broaderIndustries) {
+                    $q->where(function ($q2) use ($broaderIndustries) {
+                        foreach ($broaderIndustries as $id) {
+                            $q2->orWhereRaw('JSON_CONTAINS(JSON_EXTRACT(target_industries, "$[*].id"), CAST(? AS JSON))', [$id]);
+                        }
+                    });
+                });
+            })
+            // --- Filter by priority target industries (JSON) ---
+            ->when(!empty($priorityIndustries), function ($query) use ($priorityIndustries) {
+                $query->whereHas('targetPreference', function ($q) use ($priorityIndustries) {
+                    $q->where(function ($q2) use ($priorityIndustries) {
+                        foreach ($priorityIndustries as $id) {
+                            $q2->orWhereRaw('JSON_CONTAINS(JSON_EXTRACT(target_niche_industries, "$[*].id"), CAST(? AS JSON))', [$id]);
+                        }
+                    });
+                });
+            })
+
+            // --- Filter by EBITDA requirements range ---
+            ->when(!empty($ebitdaRequirements), function ($query) use ($ebitdaRequirements) {
+                $query->whereHas('financialDetails', function ($q) use ($ebitdaRequirements) {
+                    if (isset($ebitdaRequirements['min']) && is_numeric($ebitdaRequirements['min'])) {
+                        $q->where('expected_ebitda->max', '>=', $ebitdaRequirements['min']);
+                    }
+
+                    if (isset($ebitdaRequirements['max']) && is_numeric($ebitdaRequirements['max'])) {
+                        $q->where('expected_ebitda->min', '<=', $ebitdaRequirements['max']);
+                    }
+                });
+            })
+            // --- Filter by expected investment amount range ---
+            ->when(!empty($expectedInvestmentAmount), function ($query) use ($expectedInvestmentAmount) {
+                $query->whereHas('financialDetails', function ($q) use ($expectedInvestmentAmount) {
+                    if (isset($expectedInvestmentAmount['min']) && is_numeric($expectedInvestmentAmount['min'])) {
+                        $q->where('investment_budget->max', '>=', $expectedInvestmentAmount['min']);
+                    }
+
+                    if (isset($expectedInvestmentAmount['max']) && is_numeric($expectedInvestmentAmount['max'])) {
+                        $q->where('investment_budget->min', '<=', $expectedInvestmentAmount['max']);
+                    }
+                });
+            })
+            // --- Filter by pinned status ---
+            ->when($showOnlyPinned === '1', function ($query) {
+                $query->where('pinned', true);
+            });
+
+        // --- Apply sorting ---
+        if ($sort) {
+            $direction = str_starts_with($sort, '-') ? 'desc' : 'asc';
+            $sortColumn = ltrim($sort, '-');
+            if (in_array($sortColumn, ['created_at', 'buyer_id', 'pinned'])) {
+                $query->orderBy($sortColumn, $direction);
+            }
+        } else {
+            // --- Default sorting ---
+            $query->orderByDesc('pinned')->orderByDesc('created_at');
+        }
+
+        // --- Paginate results ---
+        $buyers = $query->paginate(10);
+        $data = ($search && $buyers->isEmpty()) ? [] : $buyers->items();
+
+        // --- Return JSON response ---
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'total' => $buyers->total(),
+                'current_page' => $buyers->currentPage(),
+                'last_page' => $buyers->lastPage(),
+                'per_page' => $buyers->perPage(),
+            ]
+        ]);
+    }
+
+
+
+    public function getLastSequence(Request $request)
+    {
+        $countryAlpha = strtoupper($request->input('country'));
+        $prefix = $countryAlpha . '-B-';
+
+        try {
+            $lastBuyer = Buyer::where('buyer_id', 'LIKE', $prefix . '%')
+                ->select('buyer_id')
+                ->get()
+                ->map(function ($item) use ($prefix) {
+                    $numericPart = str_replace($prefix, '', $item->buyer_id);
+                    return (int) $numericPart;
+                })
+                ->max();
+
+            $lastSequence = $lastBuyer ? $lastBuyer : 0;
+
+            return response()->json(['lastSequence' => $lastSequence]);
+        } catch (\Exception $e) {
+            \Log::error("Error fetching last sequence for country {$countryAlpha}: " . $e->getMessage());
+            return response()->json(['error' => 'Could not retrieve sequence number from controller.'], 500);
+        }
+    }
+
+
+
+
+    public function create()
+    {
+        //
+    }
+
+
+
+    public function store(Request $request)
+    {
+        //
+    }
+
+    public function companyOverviewStore(Request $request)
+    {
+        try {
+            $data = $request->all();
+
+
+            if ($request->hasFile('profile_picture')) {
+                $path = $request->file('profile_picture')->store('buyer_pics', 'public');
+                $data['profile_picture'] = $path;
+            }
+
+
+            // Convert JSON/stringified fields
+            $jsonFields = [
+                'main_industry_operations',
+                'niche_industry',
+                'seller_phone',
+                'shareholder_name',
+                'hq_address',
+            ];
+
+            foreach ($jsonFields as $field) {
+                if (isset($data[$field]) && is_string($data[$field])) {
+                    $data[$field] = json_decode($data[$field], true);
+                }
+            }
+
+            $buyer = Buyer::find($data['buyer'] ?? null);
+            $isNewOverview = false;
+
+            if ($buyer && $buyer->company_overview_id) {
+                // Update existing company overview
+                $overview = BuyersCompanyOverview::find($buyer->company_overview_id) ?? new BuyersCompanyOverview();
+            } else {
+                // Create new company overview
+                $overview = new BuyersCompanyOverview();
+                $isNewOverview = true;
+            }
+
+            // Assign fields
+            $overview->reg_name = $data['reg_name'] ?? null;
+            $overview->hq_country = $data['hq_country'] ?? null;
+            $overview->company_type = $data['company_type'] ?? null;
+            $overview->year_founded = $data['year_founded'] ?? null;
+            $overview->industry_ops = $data['industry_ops'] ?? null;
+            $overview->main_industry_operations = $data['main_industry_operations'] ?? null;
+            $overview->niche_industry = $data['niche_industry'] ?? null;
+            $overview->emp_count = $data['emp_count'] ?? null;
+
+            $overview->reason_ma = $data['reason_ma'] ?? null;
+            $overview->proj_start_date = $data['proj_start_date'] ?? null;
+            $overview->txn_timeline = $data['txn_timeline'] ?? null;
+
+            $overview->incharge_name = $data['incharge_name'] ?? null;
+            $overview->no_pic_needed = $data['no_pic_needed'] ?? false;
+
+            $overview->status = $data['status'] ?? null;
+            $overview->details = $data['details'] ?? null;
+
+            $overview->email = $data['email'] ?? null;
+            $overview->phone = $data['phone'] ?? null;
+            $overview->hq_address = $data['hq_address'] ?? null;
+            $overview->shareholder_name = $data['shareholder_name'] ?? null;
+
+            $overview->seller_contact_name = $data['seller_contact_name'] ?? null;
+            $overview->seller_designation = $data['seller_designation'] ?? null;
+            $overview->seller_email = $data['seller_email'] ?? null;
+            $overview->seller_phone = $data['seller_phone'] ?? null;
+
+            $overview->website = $data['website'] ?? null;
+            $overview->linkedin = $data['linkedin'] ?? null;
+            $overview->twitter = $data['twitter'] ?? null;
+            $overview->facebook = $data['facebook'] ?? null;
+            $overview->instagram = $data['instagram'] ?? null;
+            $overview->youtube = $data['youtube'] ?? null;
+
+            $overview->save();
+
+            // Link to Buyer
+            if ($buyer) {
+                $buyer->company_overview_id = $overview->id;
+                $buyer->buyer_id = $data['buyer_id'] ?? null;
+
+                if (isset($data['profile_picture'])) {
+                    $buyer->image = $data['profile_picture'];
+                }
+
+                $buyer->save();
+            } else {
+                // Create new Buyer if it doesn't exist
+                $buyer = Buyer::create([
+                    'buyer_id' => $data['buyer_id'] ?? null,
+                    'image' => $data['profile_picture'] ?? null,
+                    'company_overview_id' => $overview->id,
+                ]);
+            }
+
+            return response()->json([
+                'message' => $isNewOverview ? 'Company overview submitted successfully.' : 'Company overview updated successfully.',
+                'data' => $buyer->id,
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to submit company overview.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+
+    public function targetPreferencesStore(Request $request)
+    {
+        try {
+            $buyer = Buyer::find($request->input('buyer_id'));
+
+            if (!$buyer) {
+                return response()->json([
+                    'message' => 'Buyer not found.'
+                ], 404);
+            }
+
+            // If buyer already has target preferences, update them
+            if ($buyer->target_preference_id) {
+                $preference = BuyersTargetPreferences::find($buyer->target_preference_id);
+
+                if (!$preference) {
+                    // If the record somehow doesn't exist, fallback to a new instance
+                    $preference = new BuyersTargetPreferences();
+                }
+            } else {
+                $preference = new BuyersTargetPreferences();
+            }
+
+            // Assign input data
+            $preference->b_ind_prefs = $request->input('b_ind_prefs');
+            $preference->n_ind_prefs = $request->input('n_ind_prefs');
+            $preference->target_countries = $request->input('target_countries');
+            $preference->main_market = $request->input('main_market');
+            $preference->emp_count_range = $request->input('employeeCountRange');
+            $preference->mgmt_retention = $request->input('managementRetention');
+            $preference->years_in_biz = $request->input('N_Y_B');
+            $preference->timeline = $request->input('timeline');
+            $preference->company_type = $request->input('company_type');
+            $preference->cert = $request->input('cert');
+
+            // Save the preferences
+            $preference->save();
+
+            // Link to buyer if not already linked
+            if (!$buyer->target_preference_id) {
+                $buyer->target_preference_id = $preference->id;
+                $buyer->save();
+            }
+
+            return response()->json([
+                'message' => $buyer->wasRecentlyCreated ? 'Target preferences created successfully.' : 'Target preferences updated successfully.',
+                'data' => $buyer->id,
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to store target preferences.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+
+    public function financialDetailsStore(Request $request)
+    {
+        try {
+            $buyerId = $request->input('buyer_id');
+            $buyer = Buyer::find($buyerId);
+
+            if (!$buyer) {
+                return response()->json([
+                    'message' => 'Buyer not found.'
+                ], 404);
+            }
+
+            // Update existing financial detail or create new
+            if ($buyer->financial_detail_id) {
+                $financialDetail = BuyersFinancialDetails::find($buyer->financial_detail_id);
+                if (!$financialDetail) {
+                    $financialDetail = new BuyersFinancialDetails();
+                }
+            } else {
+                $financialDetail = new BuyersFinancialDetails();
+            }
+
+            // Fill in the fields
+            $financialDetail->default_currency = $request->input('defaultCurrency');
+            $financialDetail->ebitda_margin_latest = $request->input('ebitdaMarginLatestYear');
+            $financialDetail->growth_rate_yoy = $request->input('growthRate');
+            $financialDetail->revenue_growth_avg_3y = $request->input('revenueGrowthRate');
+            $financialDetail->ma_structure = $request->input('mnaStructure');
+            $financialDetail->profit_criteria = $request->input('profitCriteria');
+
+            $financialDetail->investment_budget = $request->input('investment_budget');
+            $financialDetail->expected_ebitda = $request->input('expected_ebitda');
+            $financialDetail->profit_multiple = $request->input('profit_multiple');
+            $financialDetail->ttm_revenue = $request->input('ttm_revenue');
+            $financialDetail->ttm_profit = $request->input('ttm_profit');
+            $financialDetail->acquire_pct = $request->input('acquire_pct');
+            $financialDetail->acquire_pct = $request->input('acquire_pct');
+            $financialDetail->shareholding = $request->input('shareholding');
+            $financialDetail->valuation = $request->input('valuation');
+            $financialDetail->ebitda_multiple = $request->input('ebitda_multiple');
+
+            $financialDetail->is_minority = $request->boolean('is_minority');
+            $financialDetail->is_majority = $request->boolean('is_majority');
+            $financialDetail->is_negotiable = $request->boolean('is_negotiable');
+
+            $financialDetail->save();
+
+            // Associate the financial detail with the buyer if not already linked
+            if (!$buyer->financial_detail_id) {
+                $buyer->financial_detail_id = $financialDetail->id;
+                $buyer->save();
+            }
+
+            return response()->json([
+                'message' => 'Buyer financial details saved successfully.',
+                'data' => $buyer->id,
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to store buyer financial details.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function partnershipDetailsStore(Request $request)
+    {
+        try {
+            // Basic sanitization with fallback values
+            $partnership = BuyersPartnershipDetails::create([
+                'partner' => trim($request->input('partner', '')),
+                'referral_bonus_criteria' => trim($request->input('referral_bonus_criteria', '')),
+                'referral_bonus_amount' => trim($request->input('referral_bonus_amount', '')),
+                'mou_status' => trim($request->input('mou_status', '')),
+                'specific_remarks' => trim($request->input('specific_remarks', '')),
+                'partnership_affiliation' => $request->input('partnership_affiliation', '0'),
+            ]);
+
+            $buyer = Buyer::find($request->input('buyer_id'));
+
+            if (!$buyer) {
+                return response()->json([
+                    'message' => 'Buyer not found.'
+                ], 404);
+            }
+
+            $buyer->partnership_detail_id = $partnership->id;
+            $buyer->save();
+
+            return response()->json([
+                'message' => 'Buyer partnership details saved successfully.',
+                'data' => $buyer->id,
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to save buyer partnership details.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function teaserCenterStore(Request $request)
+    {
+        try {
+            $data = $request->all();
+
+            $buyer = Buyer::find($request->input('buyer_id'));
+
+            if (!$buyer) {
+                return response()->json([
+                    'message' => 'Buyer not found.'
+                ], 404);
+            }
+
+            // Create or update teaser center
+            $teaserCenter = $buyer->teaser_center_id
+                ? BuyersTeaserCenters::find($buyer->teaser_center_id) ?? new BuyersTeaserCenters()
+                : new BuyersTeaserCenters();
+
+            // Basic string & nullable fields
+            $teaserCenter->teaser_heading = $data['teaser_heading'] ?? null;
+            $teaserCenter->emp_count_range = $data['emp_count_range'] ?? null;
+            $teaserCenter->investment_amount = $data['investment_amount'] ?? null;
+            $teaserCenter->growth_rate_yoy = $data['growth_rate_yoy'] ?? null;
+            $teaserCenter->teaser_details = $data['teaser_details'] ?? null;
+
+            // JSON fields (ensure string is valid JSON)
+            $jsonFields = [
+                'b_in',
+                'target_countries',
+                'expected_ebitda',
+                'acquire_pct',
+                'valuation_range'
+            ];
+
+            foreach ($jsonFields as $field) {
+                $value = $data[$field] ?? null;
+
+                if (is_string($value)) {
+                    $decoded = json_decode($value, true);
+                    $teaserCenter->$field = json_last_error() === JSON_ERROR_NONE ? $decoded : null;
+                } elseif (is_array($value)) {
+                    $teaserCenter->$field = $value;
+                } else {
+                    $teaserCenter->$field = null;
+                }
+            }
+
+            // Boolean fields (accepting "0", "1", true, false as strings or bool)
+            $booleanFields = [
+                'has_teaser_name',
+                'has_industry',
+                'has_buyer_targeted_countries',
+                'has_emp_count_range',
+                'has_expected_ebitda',
+                'has_acquiring_percentage',
+                'has_valuation_range',
+                'has_investment_amount',
+                'has_growth_rate_yoy',
+                'has_border_industry_preference',
+                'has_teaser_description',
+                // 'is_industry_checked',
+            ];
+
+            foreach ($booleanFields as $field) {
+                $value = $data[$field] ?? false;
+                $teaserCenter->$field = $value === "1" || $value === 1 || $value === true || $value === "true";
+            }
+
+            // Save teaser center
+            $teaserCenter->save();
+
+            // Attach teaser center to buyer if not set
+            if (!$buyer->teaser_center_id) {
+                $buyer->teaser_center_id = $teaserCenter->id;
+                $buyer->save();
+            }
+
+            return response()->json([
+                'message' => 'Teaser center details saved successfully.',
+                'data' => $teaserCenter  // return saved model instead of raw $data
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to save teaser center details.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+
+
+
+
+    public function show(Buyer $buyer)
+    {
+        $buyer = Buyer::with([
+            'companyOverview',
+            'targetPreference',
+            'financialDetails',
+            'partnershipDetails',
+            'teaserCenter',
+        ])->find($buyer->id);
+
+        if (!$buyer) {
+            return response()->json([
+                'message' => 'Buyer not found.'
+            ], 404);
+        }
+
+        return response()->json([
+            'data' => $buyer
+        ]);
+    }
+
+
+    public function pinned(Buyer $buyer)
+    {
+        try {
+            $buyer->pinned = !$buyer->pinned;
+            $buyer->save();
+
+            return response()->json([
+                'message' => 'Buyer pinned status updated successfully.',
+                'data' => $buyer,
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Error updating buyer pinned status: ' . $e->getMessage());
+
+            return response()->json([
+                'message' => 'Failed to update pinned status.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+
+
+    public function edit(Buyer $buyer)
+    {
+        //
+    }
+
+
+    public function update(Request $request, Buyer $buyer)
+    {
+        //
+    }
+
+
+    public function destroy(Request $request)
+    {
+        try {
+            $idsToDelete = $request->input('ids');
+
+            if (empty($idsToDelete)) {
+                return response()->json([
+                    'message' => 'No Buyer IDs provided for deletion.'
+                ], 400);
+            }
+
+            if (!is_array($idsToDelete)) {
+                $idsToDelete = [$idsToDelete];
+            }
+
+            $deletedCount = 0;
+
+            DB::transaction(function () use ($idsToDelete, &$deletedCount) {
+                FileFolder::whereIn('buyer_id', $idsToDelete)->delete();
+                $deletedCount = Buyer::destroy($idsToDelete);
+            });
+
+            if ($deletedCount > 0) {
+                $message = $deletedCount === 1
+                    ? 'Buyer and related associations deleted successfully.'
+                    : $deletedCount . ' buyers and related associations deleted successfully.';
+
+                return response()->json([
+                    'message' => $message
+                ], 200);
+            } else {
+                return response()->json([
+                    'message' => 'No buyers found with the provided IDs.'
+                ], 404);
+            }
+        } catch (\Exception $e) {
+            Log::error('Error deleting buyer(s): ' . $e->getMessage(), [
+                'exception' => $e,
+                'ids_provided' => $request->input('ids')
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to delete buyer(s).',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function pinnedData(Request $request)
+    {
+        $search = $request->input('search', '');
+        $country = $request->input('country');
+        $registeredAfter = $request->input('registered_after');
+        $status = $request->input('status');
+        $source = $request->input('source');
+        $broaderIndustries = $request->input('broader_industries', []);
+        $priorityIndustries = $request->input('priority_industries', []);
+        $showOnlyPinned = $request->input('show_only_pinned');
+        $sort = $request->input('sort');
+
+        // --- Retrieve range-based parameters ---
+        $acquisitionPreference = $request->input('acquisition_preference', []);
+        $ebitdaRequirements = $request->input('ebitda_requirements', []);
+        $expectedInvestmentAmount = $request->input('expected_investment_amount', []);
+
+
+        $buyers = Buyer::with([
+            'companyOverview',
+            'targetPreference',
+            'financialDetails',
+            'partnershipDetails',
+            'teaserCenter',
+        ])
+            ->whereHas('companyOverview', function ($query) {
+                $query->whereIn('status', ['Active', 'In Progress', 'Interested']);
+            })
+            ->when($search, function ($query) use ($search) {
+                $query->whereHas('companyOverview', function ($q) use ($search) {
+                    $q->where('reg_name', 'like', "%{$search}%");
+                });
+            })
+              // --- Filter by country ---
+            ->when($country, function ($query) use ($country) {
+                $query->whereHas('companyOverview', function ($q) use ($country) {
+                    $q->where('hq_country', $country);
+                });
+            })
+            // --- Filter by registration date ---
+            ->when($registeredAfter, function ($query) use ($registeredAfter) {
+                try {
+                    $date = Carbon::createFromFormat('Y-m-d', $registeredAfter, 'Asia/Dhaka')
+                        ->endOfDay()
+                        ->setTimezone('UTC');
+                    $query->where('created_at', '<=', $date);
+                } catch (\Exception $e) {
+                    // Ignore invalid date format
+                }
+            })
+            // --- Filter by status ---
+            ->when(!empty($status), function ($query) use ($status) {
+                $query->whereHas('companyOverview', function ($q) use ($status) {
+                    $q->where('status', 'LIKE', trim($status));
+                });
+            })
+
+            // --- Filter by source ---
+            ->when($source, function ($query) use ($source) {
+                $query->whereHas('partnershipDetails', function ($q) use ($source) {
+                    $q->where('partnership_affiliation', $source);
+                });
+            })
+            // --- Filter by broader target industries (JSON) ---
+            ->when(!empty($broaderIndustries), function ($query) use ($broaderIndustries) {
+                $query->whereHas('targetPreference', function ($q) use ($broaderIndustries) {
+                    $q->where(function ($q2) use ($broaderIndustries) {
+                        foreach ($broaderIndustries as $id) {
+                            $q2->orWhereRaw('JSON_CONTAINS(JSON_EXTRACT(target_industries, "$[*].id"), CAST(? AS JSON))', [$id]);
+                        }
+                    });
+                });
+            })
+            // --- Filter by priority target industries (JSON) ---
+            ->when(!empty($priorityIndustries), function ($query) use ($priorityIndustries) {
+                $query->whereHas('targetPreference', function ($q) use ($priorityIndustries) {
+                    $q->where(function ($q2) use ($priorityIndustries) {
+                        foreach ($priorityIndustries as $id) {
+                            $q2->orWhereRaw('JSON_CONTAINS(JSON_EXTRACT(target_niche_industries, "$[*].id"), CAST(? AS JSON))', [$id]);
+                        }
+                    });
+                });
+            })
+
+            ->when(!empty($ebitdaRequirements), function ($query) use ($ebitdaRequirements) {
+                $query->whereHas('financialDetails', function ($q) use ($ebitdaRequirements) {
+                    if (isset($ebitdaRequirements['min']) && is_numeric($ebitdaRequirements['min'])) {
+                        $q->where('expected_ebitda->max', '>=', $ebitdaRequirements['min']);
+                    }
+
+                    if (isset($ebitdaRequirements['max']) && is_numeric($ebitdaRequirements['max'])) {
+                        $q->where('expected_ebitda->min', '<=', $ebitdaRequirements['max']);
+                    }
+                });
+            })
+            // --- Filter by expected investment amount range ---
+            ->when(!empty($expectedInvestmentAmount), function ($query) use ($expectedInvestmentAmount) {
+                $query->whereHas('financialDetails', function ($q) use ($expectedInvestmentAmount) {
+                    if (isset($expectedInvestmentAmount['min']) && is_numeric($expectedInvestmentAmount['min'])) {
+                        $q->where('investment_budget->max', '>=', $expectedInvestmentAmount['min']);
+                    }
+
+                    if (isset($expectedInvestmentAmount['max']) && is_numeric($expectedInvestmentAmount['max'])) {
+                        $q->where('investment_budget->min', '<=', $expectedInvestmentAmount['max']);
+                    }
+                });
+            })
+            // --- Filter by pinned status ---
+            ->when($showOnlyPinned === '1', function ($query) {
+                $query->where('pinned', true);
+            })
+            ->paginate(10);
+
+        $data = ($search && $buyers->isEmpty()) ? [] : $buyers->items();
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'total' => $buyers->total(),
+                'current_page' => $buyers->currentPage(),
+                'last_page' => $buyers->lastPage(),
+                'per_page' => $buyers->perPage(),
+            ]
+        ]);
+    }
+
+    public function unpinnedData(Request $request)
+    {
+        $search = $request->input('search', '');
+        $country = $request->input('country');
+        $registeredAfter = $request->input('registered_after');
+        $status = $request->input('status');
+        $source = $request->input('source');
+        $broaderIndustries = $request->input('broader_industries', []);
+        $priorityIndustries = $request->input('priority_industries', []);
+        $showOnlyPinned = $request->input('show_only_pinned');
+        $sort = $request->input('sort');
+
+        // --- Retrieve range-based parameters ---
+        $acquisitionPreference = $request->input('acquisition_preference', []);
+        $ebitdaRequirements = $request->input('ebitda_requirements', []);
+        $expectedInvestmentAmount = $request->input('expected_investment_amount', []);
+
+
+        $buyers = Buyer::with([
+            'companyOverview',
+            'targetPreference',
+            'financialDetails',
+            'partnershipDetails',
+            'teaserCenter',
+        ])
+            ->whereHas('companyOverview', function ($query) {
+                $query->whereIn('status', ['Not Interested', 'Canceled', 'In-Active']);
+            })
+            ->when($search, function ($query) use ($search) {
+                $query->whereHas('companyOverview', function ($q) use ($search) {
+                    $q->where('reg_name', 'like', "%{$search}%");
+                });
+            })
+              // --- Filter by country ---
+            ->when($country, function ($query) use ($country) {
+                $query->whereHas('companyOverview', function ($q) use ($country) {
+                    $q->where('hq_country', $country);
+                });
+            })
+            // --- Filter by registration date ---
+            ->when($registeredAfter, function ($query) use ($registeredAfter) {
+                try {
+                    $date = Carbon::createFromFormat('Y-m-d', $registeredAfter, 'Asia/Dhaka')
+                        ->endOfDay()
+                        ->setTimezone('UTC');
+                    $query->where('created_at', '<=', $date);
+                } catch (\Exception $e) {
+                    // Ignore invalid date format
+                }
+            })
+            // --- Filter by status ---
+            ->when(!empty($status), function ($query) use ($status) {
+                $query->whereHas('companyOverview', function ($q) use ($status) {
+                    $q->where('status', 'LIKE', trim($status));
+                });
+            })
+
+            // --- Filter by source ---
+            ->when($source, function ($query) use ($source) {
+                $query->whereHas('partnershipDetails', function ($q) use ($source) {
+                    $q->where('partnership_affiliation', $source);
+                });
+            })
+            // --- Filter by broader target industries (JSON) ---
+            ->when(!empty($broaderIndustries), function ($query) use ($broaderIndustries) {
+                $query->whereHas('targetPreference', function ($q) use ($broaderIndustries) {
+                    $q->where(function ($q2) use ($broaderIndustries) {
+                        foreach ($broaderIndustries as $id) {
+                            $q2->orWhereRaw('JSON_CONTAINS(JSON_EXTRACT(target_industries, "$[*].id"), CAST(? AS JSON))', [$id]);
+                        }
+                    });
+                });
+            })
+            // --- Filter by priority target industries (JSON) ---
+            ->when(!empty($priorityIndustries), function ($query) use ($priorityIndustries) {
+                $query->whereHas('targetPreference', function ($q) use ($priorityIndustries) {
+                    $q->where(function ($q2) use ($priorityIndustries) {
+                        foreach ($priorityIndustries as $id) {
+                            $q2->orWhereRaw('JSON_CONTAINS(JSON_EXTRACT(target_niche_industries, "$[*].id"), CAST(? AS JSON))', [$id]);
+                        }
+                    });
+                });
+            })
+
+            ->when(!empty($ebitdaRequirements), function ($query) use ($ebitdaRequirements) {
+                $query->whereHas('financialDetails', function ($q) use ($ebitdaRequirements) {
+                    if (isset($ebitdaRequirements['min']) && is_numeric($ebitdaRequirements['min'])) {
+                        $q->where('expected_ebitda->max', '>=', $ebitdaRequirements['min']);
+                    }
+
+                    if (isset($ebitdaRequirements['max']) && is_numeric($ebitdaRequirements['max'])) {
+                        $q->where('expected_ebitda->min', '<=', $ebitdaRequirements['max']);
+                    }
+                });
+            })
+            // --- Filter by expected investment amount range ---
+            ->when(!empty($expectedInvestmentAmount), function ($query) use ($expectedInvestmentAmount) {
+                $query->whereHas('financialDetails', function ($q) use ($expectedInvestmentAmount) {
+                    if (isset($expectedInvestmentAmount['min']) && is_numeric($expectedInvestmentAmount['min'])) {
+                        $q->where('investment_budget->max', '>=', $expectedInvestmentAmount['min']);
+                    }
+
+                    if (isset($expectedInvestmentAmount['max']) && is_numeric($expectedInvestmentAmount['max'])) {
+                        $q->where('investment_budget->min', '<=', $expectedInvestmentAmount['max']);
+                    }
+                });
+            })
+            // --- Filter by pinned status ---
+            ->when($showOnlyPinned === '1', function ($query) {
+                $query->where('pinned', true);
+            })
+            ->paginate(10);
+
+        $data = ($search && $buyers->isEmpty()) ? [] : $buyers->items();
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'total' => $buyers->total(),
+                'current_page' => $buyers->currentPage(),
+                'last_page' => $buyers->lastPage(),
+                'per_page' => $buyers->perPage(),
+            ]
+        ]);
+    }
+
+
+    public function closedDeals(Request $request)
+    {
+        $search = $request->input('search', '');
+        $country = $request->input('country');
+        $registeredAfter = $request->input('registered_after');
+        $status = $request->input('status');
+        $source = $request->input('source');
+        $broaderIndustries = $request->input('broader_industries', []);
+        $priorityIndustries = $request->input('priority_industries', []);
+        $showOnlyPinned = $request->input('show_only_pinned');
+        $sort = $request->input('sort');
+
+        // --- Retrieve range-based parameters ---
+        $acquisitionPreference = $request->input('acquisition_preference', []);
+        $ebitdaRequirements = $request->input('ebitda_requirements', []);
+        $expectedInvestmentAmount = $request->input('expected_investment_amount', []);
+
+
+        $buyers = Buyer::with([
+            'companyOverview',
+            'targetPreference',
+            'financialDetails',
+            'partnershipDetails',
+            'teaserCenter',
+        ])
+            ->whereHas('companyOverview', function ($query) {
+                $query->where('status', 'Deal Closed');
+            })
+            ->when($search, function ($query) use ($search) {
+                $query->whereHas('companyOverview', function ($q) use ($search) {
+                    $q->where('reg_name', 'like', "%{$search}%");
+                });
+            })
+              // --- Filter by country ---
+            ->when($country, function ($query) use ($country) {
+                $query->whereHas('companyOverview', function ($q) use ($country) {
+                    $q->where('hq_country', $country);
+                });
+            })
+            // --- Filter by registration date ---
+            ->when($registeredAfter, function ($query) use ($registeredAfter) {
+                try {
+                    $date = Carbon::createFromFormat('Y-m-d', $registeredAfter, 'Asia/Dhaka')
+                        ->endOfDay()
+                        ->setTimezone('UTC');
+                    $query->where('created_at', '<=', $date);
+                } catch (\Exception $e) {
+                    // Ignore invalid date format
+                }
+            })
+            // --- Filter by status ---
+            ->when(!empty($status), function ($query) use ($status) {
+                $query->whereHas('companyOverview', function ($q) use ($status) {
+                    $q->where('status', 'LIKE', trim($status));
+                });
+            })
+
+            // --- Filter by source ---
+            ->when($source, function ($query) use ($source) {
+                $query->whereHas('partnershipDetails', function ($q) use ($source) {
+                    $q->where('partnership_affiliation', $source);
+                });
+            })
+            // --- Filter by broader target industries (JSON) ---
+            ->when(!empty($broaderIndustries), function ($query) use ($broaderIndustries) {
+                $query->whereHas('targetPreference', function ($q) use ($broaderIndustries) {
+                    $q->where(function ($q2) use ($broaderIndustries) {
+                        foreach ($broaderIndustries as $id) {
+                            $q2->orWhereRaw('JSON_CONTAINS(JSON_EXTRACT(target_industries, "$[*].id"), CAST(? AS JSON))', [$id]);
+                        }
+                    });
+                });
+            })
+            // --- Filter by priority target industries (JSON) ---
+            ->when(!empty($priorityIndustries), function ($query) use ($priorityIndustries) {
+                $query->whereHas('targetPreference', function ($q) use ($priorityIndustries) {
+                    $q->where(function ($q2) use ($priorityIndustries) {
+                        foreach ($priorityIndustries as $id) {
+                            $q2->orWhereRaw('JSON_CONTAINS(JSON_EXTRACT(target_niche_industries, "$[*].id"), CAST(? AS JSON))', [$id]);
+                        }
+                    });
+                });
+            })
+
+            ->when(!empty($ebitdaRequirements), function ($query) use ($ebitdaRequirements) {
+                $query->whereHas('financialDetails', function ($q) use ($ebitdaRequirements) {
+                    if (isset($ebitdaRequirements['min']) && is_numeric($ebitdaRequirements['min'])) {
+                        $q->where('expected_ebitda->max', '>=', $ebitdaRequirements['min']);
+                    }
+
+                    if (isset($ebitdaRequirements['max']) && is_numeric($ebitdaRequirements['max'])) {
+                        $q->where('expected_ebitda->min', '<=', $ebitdaRequirements['max']);
+                    }
+                });
+            })
+            // --- Filter by expected investment amount range ---
+            ->when(!empty($expectedInvestmentAmount), function ($query) use ($expectedInvestmentAmount) {
+                $query->whereHas('financialDetails', function ($q) use ($expectedInvestmentAmount) {
+                    if (isset($expectedInvestmentAmount['min']) && is_numeric($expectedInvestmentAmount['min'])) {
+                        $q->where('investment_budget->max', '>=', $expectedInvestmentAmount['min']);
+                    }
+
+                    if (isset($expectedInvestmentAmount['max']) && is_numeric($expectedInvestmentAmount['max'])) {
+                        $q->where('investment_budget->min', '<=', $expectedInvestmentAmount['max']);
+                    }
+                });
+            })
+            // --- Filter by pinned status ---
+            ->when($showOnlyPinned === '1', function ($query) {
+                $query->where('pinned', true);
+            })
+            ->paginate(10);
+
+        $data = ($search && $buyers->isEmpty()) ? [] : $buyers->items();
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'total' => $buyers->total(),
+                'current_page' => $buyers->currentPage(),
+                'last_page' => $buyers->lastPage(),
+                'per_page' => $buyers->perPage(),
+            ]
+        ]);
+    }
+
+    public function drafts(Request $request)
+    {
+        $search = $request->input('search', '');
+        $country = $request->input('country');
+        $registeredAfter = $request->input('registered_after');
+        $status = $request->input('status');
+        $source = $request->input('source');
+        $broaderIndustries = $request->input('broader_industries', []);
+        $priorityIndustries = $request->input('priority_industries', []);
+        $showOnlyPinned = $request->input('show_only_pinned');
+        $sort = $request->input('sort');
+
+        // --- Retrieve range-based parameters ---
+        $acquisitionPreference = $request->input('acquisition_preference', []);
+        $ebitdaRequirements = $request->input('ebitda_requirements', []);
+        $expectedInvestmentAmount = $request->input('expected_investment_amount', []);
+
+
+        $buyers = Buyer::with([
+            'companyOverview',
+            'targetPreference',
+            'financialDetails',
+            'partnershipDetails',
+            'teaserCenter',
+        ])
+            ->where('status', 2)
+            ->when($search, function ($query) use ($search) {
+                $query->whereHas('companyOverview', function ($q) use ($search) {
+                    $q->where('reg_name', 'like', "%{$search}%");
+                });
+            })
+              // --- Filter by country ---
+            ->when($country, function ($query) use ($country) {
+                $query->whereHas('companyOverview', function ($q) use ($country) {
+                    $q->where('hq_country', $country);
+                });
+            })
+            // --- Filter by registration date ---
+            ->when($registeredAfter, function ($query) use ($registeredAfter) {
+                try {
+                    $date = Carbon::createFromFormat('Y-m-d', $registeredAfter, 'Asia/Dhaka')
+                        ->endOfDay()
+                        ->setTimezone('UTC');
+                    $query->where('created_at', '<=', $date);
+                } catch (\Exception $e) {
+                    // Ignore invalid date format
+                }
+            })
+            // --- Filter by status ---
+            ->when(!empty($status), function ($query) use ($status) {
+                $query->whereHas('companyOverview', function ($q) use ($status) {
+                    $q->where('status', 'LIKE', trim($status));
+                });
+            })
+
+            // --- Filter by source ---
+            ->when($source, function ($query) use ($source) {
+                $query->whereHas('partnershipDetails', function ($q) use ($source) {
+                    $q->where('partnership_affiliation', $source);
+                });
+            })
+            // --- Filter by broader target industries (JSON) ---
+            ->when(!empty($broaderIndustries), function ($query) use ($broaderIndustries) {
+                $query->whereHas('targetPreference', function ($q) use ($broaderIndustries) {
+                    $q->where(function ($q2) use ($broaderIndustries) {
+                        foreach ($broaderIndustries as $id) {
+                            $q2->orWhereRaw('JSON_CONTAINS(JSON_EXTRACT(target_industries, "$[*].id"), CAST(? AS JSON))', [$id]);
+                        }
+                    });
+                });
+            })
+            // --- Filter by priority target industries (JSON) ---
+            ->when(!empty($priorityIndustries), function ($query) use ($priorityIndustries) {
+                $query->whereHas('targetPreference', function ($q) use ($priorityIndustries) {
+                    $q->where(function ($q2) use ($priorityIndustries) {
+                        foreach ($priorityIndustries as $id) {
+                            $q2->orWhereRaw('JSON_CONTAINS(JSON_EXTRACT(target_niche_industries, "$[*].id"), CAST(? AS JSON))', [$id]);
+                        }
+                    });
+                });
+            })
+
+            ->when(!empty($ebitdaRequirements), function ($query) use ($ebitdaRequirements) {
+                $query->whereHas('financialDetails', function ($q) use ($ebitdaRequirements) {
+                    if (isset($ebitdaRequirements['min']) && is_numeric($ebitdaRequirements['min'])) {
+                        $q->where('expected_ebitda->max', '>=', $ebitdaRequirements['min']);
+                    }
+
+                    if (isset($ebitdaRequirements['max']) && is_numeric($ebitdaRequirements['max'])) {
+                        $q->where('expected_ebitda->min', '<=', $ebitdaRequirements['max']);
+                    }
+                });
+            })
+            // --- Filter by expected investment amount range ---
+            ->when(!empty($expectedInvestmentAmount), function ($query) use ($expectedInvestmentAmount) {
+                $query->whereHas('financialDetails', function ($q) use ($expectedInvestmentAmount) {
+                    if (isset($expectedInvestmentAmount['min']) && is_numeric($expectedInvestmentAmount['min'])) {
+                        $q->where('investment_budget->max', '>=', $expectedInvestmentAmount['min']);
+                    }
+
+                    if (isset($expectedInvestmentAmount['max']) && is_numeric($expectedInvestmentAmount['max'])) {
+                        $q->where('investment_budget->min', '<=', $expectedInvestmentAmount['max']);
+                    }
+                });
+            })
+            // --- Filter by pinned status ---
+            ->when($showOnlyPinned === '1', function ($query) {
+                $query->where('pinned', true);
+            })
+            ->paginate(10);
+
+        $data = ($search && $buyers->isEmpty()) ? [] : $buyers->items();
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'total' => $buyers->total(),
+                'current_page' => $buyers->currentPage(),
+                'last_page' => $buyers->lastPage(),
+                'per_page' => $buyers->perPage(),
+            ]
+        ]);
+    }
+
+
+    public function fromPartners(Request $request)
+    {
+        $search = $request->input('search', '');
+        $country = $request->input('country');
+        $registeredAfter = $request->input('registered_after');
+        $status = $request->input('status');
+        $source = $request->input('source');
+        $broaderIndustries = $request->input('broader_industries', []);
+        $priorityIndustries = $request->input('priority_industries', []);
+        $showOnlyPinned = $request->input('show_only_pinned');
+        $sort = $request->input('sort');
+
+        // --- Retrieve range-based parameters ---
+        $acquisitionPreference = $request->input('acquisition_preference', []);
+        $ebitdaRequirements = $request->input('ebitda_requirements', []);
+        $expectedInvestmentAmount = $request->input('expected_investment_amount', []);
+
+
+        $buyers = Buyer::with([
+            'companyOverview',
+            'targetPreference',
+            'financialDetails',
+            'partnershipDetails.partner.partnerOverview',
+            'teaserCenter',
+        ])
+            ->whereHas('partnershipDetails', function ($query) {
+                $query->where('partnership_affiliation', 1);
+            })
+            ->when($search, function ($query) use ($search) {
+                $query->whereHas('companyOverview', function ($q) use ($search) {
+                    $q->where('reg_name', 'like', "%{$search}%");
+                });
+            })
+              // --- Filter by country ---
+            ->when($country, function ($query) use ($country) {
+                $query->whereHas('companyOverview', function ($q) use ($country) {
+                    $q->where('hq_country', $country);
+                });
+            })
+            // --- Filter by registration date ---
+            ->when($registeredAfter, function ($query) use ($registeredAfter) {
+                try {
+                    $date = Carbon::createFromFormat('Y-m-d', $registeredAfter, 'Asia/Dhaka')
+                        ->endOfDay()
+                        ->setTimezone('UTC');
+                    $query->where('created_at', '<=', $date);
+                } catch (\Exception $e) {
+                    // Ignore invalid date format
+                }
+            })
+            // --- Filter by status ---
+            ->when(!empty($status), function ($query) use ($status) {
+                $query->whereHas('companyOverview', function ($q) use ($status) {
+                    $q->where('status', 'LIKE', trim($status));
+                });
+            })
+
+            // --- Filter by source ---
+            ->when($source, function ($query) use ($source) {
+                $query->whereHas('partnershipDetails', function ($q) use ($source) {
+                    $q->where('partnership_affiliation', $source);
+                });
+            })
+            // --- Filter by broader target industries (JSON) ---
+            ->when(!empty($broaderIndustries), function ($query) use ($broaderIndustries) {
+                $query->whereHas('targetPreference', function ($q) use ($broaderIndustries) {
+                    $q->where(function ($q2) use ($broaderIndustries) {
+                        foreach ($broaderIndustries as $id) {
+                            $q2->orWhereRaw('JSON_CONTAINS(JSON_EXTRACT(target_industries, "$[*].id"), CAST(? AS JSON))', [$id]);
+                        }
+                    });
+                });
+            })
+            // --- Filter by priority target industries (JSON) ---
+            ->when(!empty($priorityIndustries), function ($query) use ($priorityIndustries) {
+                $query->whereHas('targetPreference', function ($q) use ($priorityIndustries) {
+                    $q->where(function ($q2) use ($priorityIndustries) {
+                        foreach ($priorityIndustries as $id) {
+                            $q2->orWhereRaw('JSON_CONTAINS(JSON_EXTRACT(target_niche_industries, "$[*].id"), CAST(? AS JSON))', [$id]);
+                        }
+                    });
+                });
+            })
+
+            ->when(!empty($ebitdaRequirements), function ($query) use ($ebitdaRequirements) {
+                $query->whereHas('financialDetails', function ($q) use ($ebitdaRequirements) {
+                    if (isset($ebitdaRequirements['min']) && is_numeric($ebitdaRequirements['min'])) {
+                        $q->where('expected_ebitda->max', '>=', $ebitdaRequirements['min']);
+                    }
+
+                    if (isset($ebitdaRequirements['max']) && is_numeric($ebitdaRequirements['max'])) {
+                        $q->where('expected_ebitda->min', '<=', $ebitdaRequirements['max']);
+                    }
+                });
+            })
+            // --- Filter by expected investment amount range ---
+            ->when(!empty($expectedInvestmentAmount), function ($query) use ($expectedInvestmentAmount) {
+                $query->whereHas('financialDetails', function ($q) use ($expectedInvestmentAmount) {
+                    if (isset($expectedInvestmentAmount['min']) && is_numeric($expectedInvestmentAmount['min'])) {
+                        $q->where('investment_budget->max', '>=', $expectedInvestmentAmount['min']);
+                    }
+
+                    if (isset($expectedInvestmentAmount['max']) && is_numeric($expectedInvestmentAmount['max'])) {
+                        $q->where('investment_budget->min', '<=', $expectedInvestmentAmount['max']);
+                    }
+                });
+            })
+            // --- Filter by pinned status ---
+            ->when($showOnlyPinned === '1', function ($query) {
+                $query->where('pinned', true);
+            })
+            ->paginate(10);
+
+        $data = ($search && $buyers->isEmpty()) ? [] : $buyers->items();
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'total' => $buyers->total(),
+                'current_page' => $buyers->currentPage(),
+                'last_page' => $buyers->lastPage(),
+                'per_page' => $buyers->perPage(),
+            ]
+        ]);
+    }
+}

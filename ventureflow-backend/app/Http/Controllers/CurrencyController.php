@@ -1,0 +1,172 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Currency;
+use DB;
+use Illuminate\Http\Request;
+use Log;
+
+class CurrencyController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     */
+    public function index(Request $request)
+    {
+        $search = $request->input('search');
+        $perPage = $request->input('per_page', 10);
+
+        if ($search) {
+            $currencies = Currency::where('currency_name', 'like', '%' . $search . '%')
+                ->orWhere('currency_code', 'like', '%' . $search . '%')
+                ->orWhere('currency_sign', 'like', '%' . $search . '%')
+                ->orWhere('country', 'like', '%' . $search . '%')
+                ->paginate($perPage);
+        } else {
+            $currencies = Currency::paginate($perPage);
+        }
+
+        return response()->json([
+            'data' => $currencies->items(),
+            'meta' => [
+                'total' => $currencies->total(),
+                'current_page' => $currencies->currentPage(),
+                'last_page' => $currencies->lastPage(),
+                'per_page' => $currencies->perPage(),
+            ]
+        ]);
+    }
+
+
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create()
+    {
+        //
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'currency_name' => 'required|string|max:255',
+            'currency_code' => 'required|string|max:10|unique:currencies,currency_code',
+            'currency_sign' => 'required|string|max:10',
+            'origin_country' => 'required|numeric|exists:countries,id',
+            'dollar_unit' => 'required|string',
+            'exchange_rate' => 'required|numeric',
+            'source' => 'nullable|string|max:255',
+        ]);
+
+        $currency = Currency::create($validated);
+
+        return response()->json([
+            'message' => 'Currency created successfully',
+            'data' => $currency
+        ], 201);
+    }
+
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(Currency $currency)
+    {
+        return response()->json($currency);
+    }
+
+    /**
+     * Display the specified resource for editing (for API).
+     */
+    public function edit(Currency $currency)
+    {
+
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, Currency $currency)
+    {
+        // Validate the incoming data
+        $validated = $request->validate([
+            'currency_name' => 'required|string|max:255',
+            'currency_code' => 'required|string|max:10|unique:currencies,currency_code,' . $currency->id,
+            'currency_sign' => 'required|string|max:5',
+            'origin_country' => 'required|integer|exists:countries,id',
+            'dollar_unit' => 'required|string|max:10',
+            'exchange_rate' => 'required|numeric',
+            'source' => 'nullable|string|max:255',
+        ]);
+
+        // Update the currency record with validated data
+        $currency->update([
+            'currency_name' => $validated['currency_name'],
+            'currency_code' => $validated['currency_code'],
+            'currency_sign' => $validated['currency_sign'],
+            'origin_country' => $validated['origin_country'],
+            'dollar_unit' => $validated['dollar_unit'],
+            'exchange_rate' => $validated['exchange_rate'],
+            'source' => $validated['source'],
+        ]);
+
+        // Return a response indicating success
+        return response()->json([
+            'message' => 'Currency updated successfully.',
+            'currency' => $currency,  // Optionally return the updated currency
+        ], 200);
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(Request $request)
+    {
+        try {
+            $idsToDelete = $request->input('ids');
+
+            if (empty($idsToDelete)) {
+                return response()->json(['message' => 'No Currency IDs provided for deletion.'], 400);
+            }
+
+            $idsToDelete = is_array($idsToDelete) ? $idsToDelete : [$idsToDelete];
+
+            $deletedCount = 0;
+
+            DB::transaction(function () use ($idsToDelete, &$deletedCount) {
+                $currencies = Currency::whereIn('id', $idsToDelete)->get();
+
+                $deletedCount = $currencies->count();
+
+                foreach ($currencies as $currency) {
+                    $currency->delete();
+                }
+            });
+
+            if ($deletedCount > 0) {
+                $message = $deletedCount === 1
+                    ? 'Currency deleted successfully.'
+                    : "$deletedCount currencies deleted successfully.";
+
+                return response()->json(['message' => $message], 200);
+            }
+
+            return response()->json(['message' => 'No currencies found with the provided IDs.'], 404);
+
+        } catch (\Exception $e) {
+            Log::error('Error deleting currencies: ' . $e->getMessage(), [
+                'exception' => $e,
+                'ids_provided' => $request->input('ids'),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to delete currency record(s).',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+}

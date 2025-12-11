@@ -1,0 +1,30 @@
+import React from "react";
+
+type PrimaryButtonProps = {
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+  icon?: React.ReactNode;
+  iconPosition?: "before" | "after";
+};
+
+const PrimaryButton: React.FC<PrimaryButtonProps> = ({
+  children,
+  onClick,
+  className = "",
+  icon,
+  iconPosition = "before",
+}) => {
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex min-w-[100px] min-h-[35px] items-center justify-center gap-[5px] flex-shrink-0 bg-[#064771] text-white px-[8px] py-[5px] rounded-[49.82036209106445px] hover:bg-opacity-90 transition font-poppins ${className}`}
+    >
+      {icon && iconPosition === "before" && <span className="ml-[8px] py-[5px]">{icon}</span>}
+      <span className="mr-[8px] py-[5px]">{children}</span>
+      {icon && iconPosition === "after" && <span className="ml-[8px] py-[5px]">{icon}</span>}
+    </button>
+  );
+};
+
+export default PrimaryButton;
