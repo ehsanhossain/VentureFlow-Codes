@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { BrowserRouter as Router, useLocation} from "react-router-dom";
+import { BrowserRouter as Router, useLocation } from "react-router-dom";
 import { Header } from "./components/Header";
 import { Sidebar } from "./components/Sidebar";
 import AppRoutes from "./routes/AppRoutes";
@@ -65,31 +65,30 @@ const Content: React.FC<ContentProps> = ({
   return (
     <div className="min-h-screen bg-white">
       {!hideLayout && mobileMenuOpen && (
-      <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
-        onClick={() => toggleMobileMenu()}
-      />
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
+          onClick={() => toggleMobileMenu()}
+        />
       )}
       {!hideLayout && (
-      <Header
-        mobileMenuOpen={mobileMenuOpen}
-        toggleMobileMenu={toggleMobileMenu}
-      />
+        <Header
+          mobileMenuOpen={mobileMenuOpen}
+          toggleMobileMenu={toggleMobileMenu}
+        />
       )}
       {!hideLayout && (
-      <Sidebar
-        sidebarExpanded={sidebarExpanded}
-        setSidebarExpanded={setSidebarExpanded}
-        mobileMenuOpen={mobileMenuOpen}
-      />
+        <Sidebar
+          sidebarExpanded={sidebarExpanded}
+          setSidebarExpanded={setSidebarExpanded}
+          mobileMenuOpen={mobileMenuOpen}
+        />
       )}
       <main
-        className={`transition-all duration-300 min-h-screen w-full
-    ${
-      hideLayout
-        ? "p-0 m-0 flex justify-center items-center h-screen"
-        : "bg-white"
-    }
+        className={`transition-all duration-300 min-h-screen w-full overflow-x-hidden
+    ${hideLayout
+            ? "p-0 m-0 flex justify-center items-center h-screen"
+            : "bg-white"
+          }
     ${!hideLayout ? "pt-16" : ""}
     ${!hideLayout && sidebarExpanded ? "md:pl-64" : ""}
     ${!hideLayout && !sidebarExpanded ? "md:pl-16" : ""}

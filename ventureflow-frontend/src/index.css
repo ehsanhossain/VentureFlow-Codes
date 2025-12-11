@@ -2,3 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Global responsive styles */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+#root {
+  max-width: 100vw;
+  overflow-x: hidden;
+}

@@ -19,6 +19,8 @@ import PartnerPortalDetails from "../pages/partner-portal/partner-portal-view/Pa
 import Dashboard from "../pages/Dashboard";
 import SellerPortalDetails from "../pages/seller-portal/seller-portal-view/SellerPortalDetails";
 import Settings from "../pages/settings/Settings";
+import ProspectsPortal from "../pages/prospects/ProspectsPortal";
+import DealPipeline from "../pages/deals/DealPipeline";
 
 const AppRoutes = () => {
   return (
@@ -29,6 +31,22 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/prospects"
+        element={
+          <ProtectedRoute>
+            <ProspectsPortal />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/deal-pipeline"
+        element={
+          <ProtectedRoute>
+            <DealPipeline />
           </ProtectedRoute>
         }
       />
@@ -122,13 +140,13 @@ const AppRoutes = () => {
       />
 
       <Route
-  path="/employee/edit/:id"
-  element={
-    <ProtectedRoute>
-      <CreateEmployee />
-    </ProtectedRoute>
-  }
-/>
+        path="/employee/edit/:id"
+        element={
+          <ProtectedRoute>
+            <CreateEmployee />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/employee/add"
         element={
@@ -138,13 +156,13 @@ const AppRoutes = () => {
         }
       />
       <Route
-  path="/employee/details/:id"
-  element={
-    <ProtectedRoute>
-      <EmployeeDetails />
-    </ProtectedRoute>
-  }
-/>
+        path="/employee/details/:id"
+        element={
+          <ProtectedRoute>
+            <EmployeeDetails />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/currency"
         element={
@@ -191,7 +209,7 @@ const AppRoutes = () => {
           <ProtectedRoute>
             <AddPartner />
           </ProtectedRoute>
-        } 
+        }
       />
       <Route
         path="/partner-portal/view/:id"
@@ -199,7 +217,7 @@ const AppRoutes = () => {
           <ProtectedRoute>
             <PartnerPortalDetails />
           </ProtectedRoute>
-        } 
+        }
       />
       <Route
         path="/settings"

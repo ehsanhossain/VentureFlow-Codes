@@ -18,6 +18,11 @@ This document serves as a living record of the application's development and ver
     - Frontend: `npm install` (Success)
     - Backend: `composer install` (Success with `--ignore-platform-reqs` due to PHP 8.5 mismatch)
 
+### [Date: 2025-12-11] Sidebar Refactoring
+- [x] **New Icon Configured**: Added `ProspectsIcon` for the new menu item.
+- [x] **Menu Regrouped**: Merged "Seller" and "Buyer" into "Prospects" in `menuItems.ts`.
+- [x] **Sidebar Updated**: Implemented nested dropdown capability in `Sidebar.tsx` using Headless UI.
+
 ## Next Steps
 - [ ] Run the application locally to verify full end-to-end functionality.
 - [ ] Review specific features or "VentureFlow" business logic.

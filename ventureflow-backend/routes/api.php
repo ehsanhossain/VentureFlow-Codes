@@ -129,4 +129,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Dashboard Routes
     Route::get('/dashboard/data', [DashboardController::class, 'getSellerBuyerData']);
     Route::get('/dashboard/counts', [DashboardController::class, 'getCounts']);
+
+    // Deal Pipeline Routes
+    Route::get('/deals/dashboard', [\App\Http\Controllers\DealController::class, 'dashboard']);
+    Route::patch('/deals/{deal}/stage', [\App\Http\Controllers\DealController::class, 'updateStage']);
+    Route::apiResource('deals', \App\Http\Controllers\DealController::class);
 });

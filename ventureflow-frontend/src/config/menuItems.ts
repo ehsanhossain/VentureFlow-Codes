@@ -3,7 +3,7 @@ import {
   SellerIcon,
   BuyerIcon,
   BuyerPartnerIcon,
-
+  ProspectsIcon,
   CatalystIcon,
   MatchIcon,
   EmployeeIcon,
@@ -18,14 +18,22 @@ export interface MenuItem {
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   label: string;
   path?: string;
+  subItems?: { label: string; path: string; icon?: React.ComponentType<React.SVGProps<SVGSVGElement>> }[];
 }
 
 export const menuItems: MenuItem[] = [
   { icon: DashboardIcon, label: "Dashboard", path: "/" },
-  { icon: SellerIcon, label: "Seller", path: "/seller-portal" },
-  { icon: BuyerIcon, label: "Buyer", path: "/buyer-portal" },
+  {
+    icon: ProspectsIcon,
+    label: "Prospects",
+    path: "/prospects",
+    subItems: [
+      { label: "Seller Register", path: "/seller-portal/add", icon: SellerIcon },
+      { label: "Buyer Register", path: "/buyer-portal/create", icon: BuyerIcon },
+    ],
+  },
+  { icon: CatalystIcon, label: "Deal Pipeline", path: "/deal-pipeline" },
   { icon: BuyerPartnerIcon, label: "Partner", path: "/partner-portal" },
-  { icon: CatalystIcon, label: "Catalyst", path: "/catalyst" },
   { icon: MatchIcon, label: "Valuation", path: "/match" },
   { icon: EmployeeIcon, label: "Employee", path: "/employee" },
   { icon: CountryIcon, label: "Country Book", path: "/country" },
