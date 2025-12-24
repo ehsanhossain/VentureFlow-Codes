@@ -387,7 +387,28 @@ class PartnerController extends Controller
             ->whereHas('partnershipDetails', function ($query) use ($partner) {
                 $query->where('partner', $partner->id);
             })
-            ->get();
+            ->get()
+            ->map(function ($seller) {
+                $overview = $seller->companyOverview;
+                return [
+                    'id' => $seller->id,
+                    // return safe teaser data
+                    'teaser_overview' => [
+                        'hq_country' => $overview->hq_country ?? null,
+                        'industry_ops' => $overview->industry_ops ?? null,
+                        'niche_industry' => $overview->niche_industry ?? null,
+                        'year_founded' => $overview->year_founded ?? null,
+                        'emp_total' => $overview->emp_total ?? null,
+                        'reason_ma' => $overview->reason_ma ?? null,
+                        'txn_timeline' => $overview->txn_timeline ?? null,
+                        'status' => $overview->status ?? null,
+                        // HIDDEN: reg_name, contact info, etc.
+                    ],
+                    'financial_details' => $seller->financialDetails, // Assuming safe
+                    'teaser_center' => $seller->teaserCenter,
+                    // 'partnership_details' => $seller->partnershipDetails, // Maybe needed?
+                ];
+            });
 
         return response()->json([
             'data' => $sellers,
@@ -407,7 +428,26 @@ class PartnerController extends Controller
             ->whereHas('partnershipDetails', function ($query) use ($partner) {
                 $query->where('partner', $partner->id);
             })
-            ->get();
+            ->get()
+            ->map(function ($buyer) {
+                $overview = $buyer->companyOverview;
+                return [
+                    'id' => $buyer->id,
+                    'teaser_overview' => [
+                        'hq_country' => $overview->hq_country ?? null,
+                         // Buyer overview fields might differ slightly
+                        'company_type' => $overview->company_type ?? null,
+                        'year_founded' => $overview->year_founded ?? null,
+                        'main_industry_operations' => $overview->main_industry_operations ?? null,
+                        'emp_count' => $overview->emp_count ?? null,
+                        'reason_ma' => $overview->reason_ma ?? null,
+                        'txn_timeline' => $overview->txn_timeline ?? null,
+                    ],
+                    'target_preference' => $buyer->targetPreference,
+                    'financial_details' => $buyer->financialDetails,
+                    'teaser_center' => $buyer->teaserCenter,
+                ];
+            });
 
         return response()->json([
             'data' => $buyers,

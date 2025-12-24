@@ -12,12 +12,14 @@ type DropdownProps = {
   countries: Country[];
   selected?: Country | null;
   onSelect: (country: Country) => void;
+  placeholder?: string;
 };
 
 export const Dropdown = ({
   countries,
   selected,
   onSelect,
+  placeholder,
 }: DropdownProps): JSX.Element => {
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState(false);
@@ -86,14 +88,13 @@ export const Dropdown = ({
                 />
               </svg>
             )}
-            <span className="font-medium text-[#30313d] text-sm sm:text-base leading-5 truncate max-w-[150px] sm:max-w-none">
-              {selectedCountry?.name || "Select a country"}
+            <span className="flex-grow text-left text-sm text-[#30313D] font-normal leading-[19.29px]">
+              {selectedCountry ? selectedCountry.name : placeholder || 'Select Country'}
             </span>
           </div>
           <svg
-            className={`w-4 h-4 text-gray-400 transform transition-transform ${
-              isOpen ? "rotate-180" : "rotate-0"
-            }`}
+            className={`w-4 h-4 text-gray-400 transform transition-transform ${isOpen ? "rotate-180" : "rotate-0"
+              }`}
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -123,7 +124,7 @@ export const Dropdown = ({
               />
             </div>
 
-      
+
             <div className="w-full max-h-[60vh] overflow-y-auto pr-1.5">
               <div className="flex flex-col w-full items-start gap-3">
                 {filteredCountries.map((country) => (

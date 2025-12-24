@@ -27,25 +27,32 @@ const genderOptions = [
 ];
 
 type FormValues = {
+  // Common Fields
+  loginEmail: string;
+  password: string;
+  profilePicture: FileList;
+  nationality: Country | null; // Used for both (Employee Nationality / Partner HQ Country)
+
+  // Employee Fields
   firstName: string;
   lastName: string;
   gender: string;
   employeeID: string;
-  nationality: Country | null;
   employeeStatus: string;
   joiningDate: Date | null;
   dobDate: Date | null;
   workEmail: string;
   contact: string;
   role: string;
-  profilePicture: FileList;
   company: Option | null;
   department: Option | null;
   branch: Option | null;
   team: Option | null;
   designation: Option | null;
-  loginEmail: string;
-  password: string;
+
+  // Partner Fields
+  regName: string;
+  partnerID: string;
 };
 
 const empStatusOptions = [
@@ -55,6 +62,7 @@ const empStatusOptions = [
 ];
 
 const CreateEmployee: React.FC = () => {
+  const [accountType, setAccountType] = useState<'employee' | 'partner'>('employee');
 
   const [designationOptions, setDesignationOptions] = useState<Option[]>([]);
 
@@ -428,27 +436,38 @@ const CreateEmployee: React.FC = () => {
         formData.append('id', id);
       }
 
-      formData.append('first_name', data.firstName);
-      formData.append('last_name', data.lastName);
-      formData.append('gender', data.gender);
-      formData.append('employee_id', data.employeeID);
-      formData.append(
-        'nationality',
-        data.nationality && data.nationality.id ? String(data.nationality.id) : ''
-      );
-      formData.append('employee_status', data.employeeStatus);
-      formData.append('joining_date', data.joiningDate?.toISOString().split('T')[0] || '');
-      formData.append('dob', data.dobDate?.toISOString().split('T')[0] || '');
-      formData.append('work_email', data.workEmail);
-      formData.append('contact_number', data.contact);
-      formData.append('company', data.company?.value || '');
-      formData.append('department', data.department?.value || '');
-      formData.append('branch', data.branch?.value || '');
-      formData.append('team', data.team?.value || '');
-      formData.append('designation', data.designation?.value || '');
-      formData.append('role', data.role);
-      formData.append('login_email', data.loginEmail || '');
-      formData.append('password', data.password || '');
+      formData.append('type', accountType);
+
+      if (accountType === 'employee') {
+        formData.append('first_name', data.firstName);
+        formData.append('last_name', data.lastName);
+        formData.append('gender', data.gender);
+        formData.append('employee_id', data.employeeID);
+        formData.append(
+          'nationality',
+          data.nationality && data.nationality.id ? String(data.nationality.id) : ''
+        );
+        formData.append('employee_status', data.employeeStatus);
+        formData.append('joining_date', data.joiningDate?.toISOString().split('T')[0] || '');
+        formData.append('dob', data.dobDate?.toISOString().split('T')[0] || '');
+        formData.append('work_email', data.workEmail);
+        formData.append('contact_number', data.contact);
+        formData.append('company', data.company?.value || '');
+        formData.append('department', data.department?.value || '');
+        formData.append('branch', data.branch?.value || '');
+        formData.append('team', data.team?.value || '');
+        formData.append('designation', data.designation?.value || '');
+        formData.append('role', data.role);
+        formData.append('login_email', data.loginEmail || '');
+        formData.append('password', data.password || '');
+      } else {
+        // Partner Data
+        formData.append('reg_name', data.regName);
+        formData.append('partner_id', data.partnerID);
+        formData.append('hq_country', data.nationality ? String(data.nationality.id) : '');
+        formData.append('login_email', data.loginEmail || '');
+        formData.append('password', data.password || '');
+      }
 
       const file = data.profilePicture?.[0];
       if (file) {
@@ -493,7 +512,7 @@ const CreateEmployee: React.FC = () => {
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="flex flex-col flex-shrink-0 justify-center items-start gap-4 w-full md:w-[682px]">
           <div className="flex items-center self-stretch text-[#00081a] text-right font-poppins text-[1.75rem] font-medium leading-[normal] pt-10 md:pt-[40px] pl-[25px]">
-            {id ? 'Update Employee' : 'Create an Employee'}
+            {id ? 'Update User' : `Create ${accountType === 'employee' ? 'Employee' : 'Partner'}`}
           </div>
           <div className="flex items-center self-stretch pl-[25px]">
             <div className="flex flex-col md:flex-row items-center gap-2.5 w-full md:w-[447px]">
@@ -534,6 +553,22 @@ const CreateEmployee: React.FC = () => {
                 <Breadcrumb links={breadcrumbLinks} />
               </div>
             </div>
+            {!id && (
+              <div className="flex items-center gap-2 ml-auto pr-6">
+                <span className={`text-sm font-medium ${accountType === 'employee' ? 'text-[#064771]' : 'text-gray-500'}`}>Employee</span>
+                <div
+                  className={`w-12 h-6 flex items-center bg-gray-300 rounded-full p-1 cursor-pointer transition-colors duration-300 ${accountType === 'partner' ? 'bg-[#064771]' : 'bg-gray-300'
+                    }`}
+                  onClick={() => setAccountType(prev => prev === 'employee' ? 'partner' : 'employee')}
+                >
+                  <div
+                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${accountType === 'partner' ? 'translate-x-6' : ''
+                      }`}
+                  />
+                </div>
+                <span className={`text-sm font-medium ${accountType === 'partner' ? 'text-[#064771]' : 'text-gray-500'}`}>Partner</span>
+              </div>
+            )}
           </div>
 
           <div className="flex self-stretch justify-start items-center flex-row gap-[26px] pt-[55px] pl-[40px]">
@@ -599,287 +634,376 @@ const CreateEmployee: React.FC = () => {
               </svg>
             </div>
             <div className="flex justify-start items-start flex-col gap-9 w-[1042px]">
-              <div className="flex self-stretch justify-start items-center flex-row gap-[44px]">
-                <div className="flex flex-col gap-5 w-full md:w-[386px]">
-                  <div className="flex justify-start items-center flex-row gap-1.5">
-                    <span className="text-[#EC1D42] font-sf font-semibold leading-[19.28569984436035px]">
-                      *
-                    </span>
-                    <span className="text-[#30313D] font-medium leading-[19.28569984436035px] font-poppins">
-                      First Name
-                    </span>
-                  </div>
-                  <Input
-                    {...register('firstName', {
-                      required: 'First Name is required',
-                    })}
-                    placeholder="Please write your first name"
-                    error={!!errors.firstName}
-                  />
-                  {errors.firstName && (
-                    <span className="text-sm text-red-500 font-poppins mt-[-5px]">
-                      {errors.firstName.message}
-                    </span>
-                  )}
-                </div>
-                <div className="flex justify-start items-start flex-col gap-3.5 w-[386px]">
-                  <div className="flex self-stretch justify-start items-center flex-row gap-1.5">
-                    <div className="flex justify-start items-center flex-row gap-[3px]">
-                      <span className="text-[#EC1D42] font-serif font-semibold leading-[19.28569984436035px]">
-                        *
-                      </span>
-                      <span className="text-[#30313D] font-medium leading-[19.28569984436035px] font-poppins">
-                        Last Name
-                      </span>
-                    </div>
-                    <div className="flex justify-center items-center w-4 h-4"></div>
-                  </div>
-                  <Input
-                    {...register('lastName', {
-                      required: 'Last Name is required',
-                    })}
-                    placeholder="Please write your last name"
-                    error={!!errors.lastName}
-                  />
-                  {errors.lastName && (
-                    <span className="text-sm text-red-500 font-poppins mt-[-5px]">
-                      {errors.lastName.message}
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-col gap-[19px] w-[182px]">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[#EC1D42] font-serif font-bold leading-[19.2857px]">
-                      *
-                    </span>
-                    <span className="text-[#30313D] font-medium leading-[19.2857px] font-poppins">
-                      Gender
-                    </span>
-                  </div>
-
-                  <Controller
-                    name="gender"
-                    control={control}
-                    rules={{ required: true }}
-                    render={({ field }) => (
-                      <Select
-                        options={genderOptions}
-                        selected={field.value}
-                        onChange={field.onChange}
-                      />
-                    )}
-                  />
-
-                  {errors.gender && (
-                    <span className="text-sm text-red-500 font-poppins mt-[-5px]">
-                      Gender is required
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex self-stretch justify-start items-center flex-row gap-[44px]">
-                <div className="flex flex-col gap-3.5 w-[386px]">
-                  <div className="flex items-center gap-1.5">
-                    <div className="flex items-center gap-1">
-                      <span className="text-red-600 font-semibold leading-5">*</span>
-                      <span className="text-gray-800 font-medium leading-5 font-poppins">
-                        Employee ID
-                      </span>
-                    </div>
-                  </div>
-                  <Input
-                    {...register('employeeID', {
-                      required: 'Employee ID is required',
-                    })}
-                    placeholder="Please Write Employee ID"
-                    error={!!errors.employeeID}
-                  />
-                  {errors.employeeID && (
-                    <span className="text-sm text-red-500 font-poppins mt-[-5px]">
-                      {errors.employeeID.message}
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-col gap-3.5 w-full md:w-[386px]">
-                  <div className="flex items-center gap-1.5">
-                    <div className="flex items-center gap-1">
-                      <span className="text-red-600 font-semibold leading-5">*</span>
-                      <span className="text-gray-800 font-medium leading-5 font-poppins">
-                        Nationality
-                      </span>
-                    </div>
-                  </div>
-                  <Controller
-                    name="nationality"
-                    control={control}
-                    render={({ field }) => (
-                      <div className="w-full">
-                        <Dropdown
-                          {...field}
-                          countries={countries}
-                          selected={field.value}
-                          onSelect={field.onChange}
-                        />
-                      </div>
-                    )}
-                  />
-                </div>
-
-                <Controller
-                  name="employeeStatus"
-                  control={control}
-                  rules={{ required: 'Employee status is required' }}
-                  render={({ field }) => (
-                    <div className="flex flex-col gap-4 w-[182px]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-red-600 font-semibold font-poppins">*</span>
-                        <span className="text-gray-800 font-medium font-poppins">
-                          Employee Status
+              {accountType === 'partner' ? (
+                <>
+                  {/* Partner Fields */}
+                  <div className="flex self-stretch justify-start items-center flex-row gap-[44px]">
+                    <div className="flex flex-col gap-5 w-full md:w-[386px]">
+                      <div className="flex justify-start items-center flex-row gap-1.5">
+                        <span className="text-[#EC1D42] font-sf font-semibold leading-[19.28569984436035px]">
+                          *
+                        </span>
+                        <span className="text-[#30313D] font-medium leading-[19.28569984436035px] font-poppins">
+                          Registered Name
                         </span>
                       </div>
-                      <Select
-                        options={empStatusOptions}
-                        selected={field.value}
-                        onChange={field.onChange}
+                      <Input
+                        {...register('regName', {
+                          required: accountType === 'partner' ? 'Registered Name is required' : false,
+                        })}
+                        placeholder="Organization Name"
+                        error={!!errors.regName}
                       />
+                      {errors.regName && (
+                        <span className="text-sm text-red-500 font-poppins mt-[-5px]">
+                          {errors.regName.message}
+                        </span>
+                      )}
                     </div>
-                  )}
-                />
-              </div>
-              <div className="flex justify-start items-center flex-row gap-[44px]">
-                <div className="flex justify-start items-center flex-row gap-5">
-                  <div className="flex flex-col gap-4 w-[183px]">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-red-600 font-semibold"> *</span>
-                      <span className="text-gray-800 font-medium font-poppins">Joining Date</span>
+                    <div className="flex flex-col gap-3.5 w-[386px]">
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1">
+                          <span className="text-red-600 font-semibold leading-5">*</span>
+                          <span className="text-gray-800 font-medium leading-5 font-poppins">
+                            Partner ID
+                          </span>
+                        </div>
+                      </div>
+                      <Input
+                        {...register('partnerID', {
+                          required: accountType === 'partner' ? 'Partner ID is required' : false,
+                        })}
+                        placeholder="Partner ID"
+                        error={!!errors.partnerID}
+                      />
+                      {errors.partnerID && (
+                        <span className="text-sm text-red-500 font-poppins mt-[-5px]">
+                          {errors.partnerID.message}
+                        </span>
+                      )}
                     </div>
-                    <div className="relative">
+                  </div>
+
+                  <div className="flex self-stretch justify-start items-center flex-row gap-[44px]">
+                    <div className="flex flex-col gap-3.5 w-full md:w-[386px]">
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1">
+                          <span className="text-red-600 font-semibold leading-5">*</span>
+                          <span className="text-gray-800 font-medium leading-5 font-poppins">
+                            HQ Country
+                          </span>
+                        </div>
+                      </div>
                       <Controller
+                        name="nationality"
                         control={control}
-                        name="joiningDate"
+                        rules={{ required: accountType === 'partner' ? 'HQ Country is required' : false }}
                         render={({ field }) => (
-                          <DatePicker
-                            value={field.value}
+                          <div className="w-full">
+                            <Dropdown
+                              {...field}
+                              countries={countries}
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              placeholder="Select HQ Country"
+                            />
+                          </div>
+                        )}
+                      />
+                      {errors.nationality && (
+                        <span className="text-sm text-red-500 font-poppins mt-[-5px]">
+                          Country is required
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Employee Fields */}
+                  <div className="flex self-stretch justify-start items-center flex-row gap-[44px]">
+                    <div className="flex flex-col gap-5 w-full md:w-[386px]">
+                      <div className="flex justify-start items-center flex-row gap-1.5">
+                        <span className="text-[#EC1D42] font-sf font-semibold leading-[19.28569984436035px]">
+                          *
+                        </span>
+                        <span className="text-[#30313D] font-medium leading-[19.28569984436035px] font-poppins">
+                          First Name
+                        </span>
+                      </div>
+                      <Input
+                        {...register('firstName', {
+                          required: 'First Name is required',
+                        })}
+                        placeholder="Please write your first name"
+                        error={!!errors.firstName}
+                      />
+                      {errors.firstName && (
+                        <span className="text-sm text-red-500 font-poppins mt-[-5px]">
+                          {errors.firstName.message}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex justify-start items-start flex-col gap-3.5 w-[386px]">
+                      <div className="flex self-stretch justify-start items-center flex-row gap-1.5">
+                        <div className="flex justify-start items-center flex-row gap-[3px]">
+                          <span className="text-[#EC1D42] font-serif font-semibold leading-[19.28569984436035px]">
+                            *
+                          </span>
+                          <span className="text-[#30313D] font-medium leading-[19.28569984436035px] font-poppins">
+                            Last Name
+                          </span>
+                        </div>
+                        <div className="flex justify-center items-center w-4 h-4"></div>
+                      </div>
+                      <Input
+                        {...register('lastName', {
+                          required: 'Last Name is required',
+                        })}
+                        placeholder="Please write your last name"
+                        error={!!errors.lastName}
+                      />
+                      {errors.lastName && (
+                        <span className="text-sm text-red-500 font-poppins mt-[-5px]">
+                          {errors.lastName.message}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-[19px] w-[182px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[#EC1D42] font-serif font-bold leading-[19.2857px]">
+                          *
+                        </span>
+                        <span className="text-[#30313D] font-medium leading-[19.2857px] font-poppins">
+                          Gender
+                        </span>
+                      </div>
+
+                      <Controller
+                        name="gender"
+                        control={control}
+                        rules={{ required: true }}
+                        render={({ field }) => (
+                          <Select
+                            options={genderOptions}
+                            selected={field.value}
                             onChange={field.onChange}
-                            placeholder="Select date"
-                            icon={
-                              <svg
-                                width="18"
-                                height="16"
-                                viewBox="0 0 18 16"
-                                fill="none"
-                                xmlns="http://www.w3.org/2000/svg"
-                              >
-                                <path
-                                  d="M12.3897 6.70475C9.77323 6.70475 7.64355 8.77865 7.64355 11.3281C7.64355 13.863 9.77323 15.9257 12.3897 15.9257C15.0062 15.9257 17.1359 13.8518 17.1359 11.3023C17.1359 8.76742 15.0062 6.70475 12.3897 6.70475ZM12.3897 14.6047C10.5204 14.6047 8.99961 13.1345 8.99961 11.3281C8.99961 9.50715 10.5204 8.0257 12.3897 8.0257C14.2591 8.0257 15.7799 9.49592 15.7799 11.3023C15.7799 13.1233 14.2591 14.6047 12.3897 14.6047ZM13.5471 11.4958C13.8122 11.7541 13.8122 12.1715 13.5471 12.4298C13.4149 12.5586 13.2413 12.6233 13.0678 12.6233C12.8942 12.6233 12.7206 12.5586 12.5884 12.4298L11.9104 11.7693C11.7829 11.6451 11.7117 11.4774 11.7117 11.3023V9.98137C11.7117 9.61679 12.0148 9.3209 12.3897 9.3209C12.7647 9.3209 13.0678 9.61679 13.0678 9.98137V11.0289L13.5471 11.4958ZM17.1359 4.69756V6.01851C17.1359 6.3831 16.8329 6.67899 16.4579 6.67899C16.083 6.67899 15.7799 6.3831 15.7799 6.01851V4.69756C15.7799 3.60513 14.8673 2.71613 13.7458 2.71613H4.25342C3.13196 2.71613 2.21934 3.60513 2.21934 4.69756V5.35804H8.32158C8.69585 5.35804 8.99961 5.65393 8.99961 6.01851C8.99961 6.3831 8.69585 6.67899 8.32158 6.67899H2.21934V12.6233C2.21934 13.7157 3.13196 14.6047 4.25342 14.6047H6.96552C7.33979 14.6047 7.64355 14.9006 7.64355 15.2652C7.64355 15.6298 7.33979 15.9257 6.96552 15.9257H4.25342C2.3841 15.9257 0.863281 14.4442 0.863281 12.6233V4.69756C0.863281 2.87662 2.3841 1.39517 4.25342 1.39517H4.93144V0.734696C4.93144 0.370112 5.2352 0.0742188 5.60947 0.0742188C5.98374 0.0742188 6.2875 0.370112 6.2875 0.734696V1.39517H11.7117V0.734696C11.7117 0.370112 12.0148 0.0742188 12.3897 0.0742188C12.7647 0.0742188 13.0678 0.370112 13.0678 0.734696V1.39517H13.7458C15.6151 1.39517 17.1359 2.87662 17.1359 4.69756Z"
-                                  fill="#005E80"
-                                />
-                              </svg>
-                            }
                           />
                         )}
                       />
+
+                      {errors.gender && (
+                        <span className="text-sm text-red-500 font-poppins mt-[-5px]">
+                          Gender is required
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div className="flex flex-col gap-4 w-[183px]">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-red-600 font-semibold"> *</span>
-                      <span className="text-gray-800 font-medium font-poppins">DOB</span>
+                  <div className="flex self-stretch justify-start items-center flex-row gap-[44px]">
+                    <div className="flex flex-col gap-3.5 w-[386px]">
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1">
+                          <span className="text-red-600 font-semibold leading-5">*</span>
+                          <span className="text-gray-800 font-medium leading-5 font-poppins">
+                            Employee ID
+                          </span>
+                        </div>
+                      </div>
+                      <Input
+                        {...register('employeeID', {
+                          required: 'Employee ID is required',
+                        })}
+                        placeholder="Please Write Employee ID"
+                        error={!!errors.employeeID}
+                      />
+                      {errors.employeeID && (
+                        <span className="text-sm text-red-500 font-poppins mt-[-5px]">
+                          {errors.employeeID.message}
+                        </span>
+                      )}
                     </div>
-                    <div className="relative">
+                    <div className="flex flex-col gap-3.5 w-full md:w-[386px]">
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1">
+                          <span className="text-red-600 font-semibold leading-5">*</span>
+                          <span className="text-gray-800 font-medium leading-5 font-poppins">
+                            Nationality
+                          </span>
+                        </div>
+                      </div>
                       <Controller
+                        name="nationality"
                         control={control}
-                        name="dobDate"
                         render={({ field }) => (
-                          <DatePicker
-                            value={field.value}
-                            onChange={field.onChange}
-                            placeholder="Select date"
-                            icon={
-                              <svg
-                                width="18"
-                                height="16"
-                                viewBox="0 0 18 16"
-                                fill="none"
-                                xmlns="http://www.w3.org/2000/svg"
-                              >
-                                <path
-                                  d="M12.3897 6.70475C9.77323 6.70475 7.64355 8.77865 7.64355 11.3281C7.64355 13.863 9.77323 15.9257 12.3897 15.9257C15.0062 15.9257 17.1359 13.8518 17.1359 11.3023C17.1359 8.76742 15.0062 6.70475 12.3897 6.70475ZM12.3897 14.6047C10.5204 14.6047 8.99961 13.1345 8.99961 11.3281C8.99961 9.50715 10.5204 8.0257 12.3897 8.0257C14.2591 8.0257 15.7799 9.49592 15.7799 11.3023C15.7799 13.1233 14.2591 14.6047 12.3897 14.6047ZM13.5471 11.4958C13.8122 11.7541 13.8122 12.1715 13.5471 12.4298C13.4149 12.5586 13.2413 12.6233 13.0678 12.6233C12.8942 12.6233 12.7206 12.5586 12.5884 12.4298L11.9104 11.7693C11.7829 11.6451 11.7117 11.4774 11.7117 11.3023V9.98137C11.7117 9.61679 12.0148 9.3209 12.3897 9.3209C12.7647 9.3209 13.0678 9.61679 13.0678 9.98137V11.0289L13.5471 11.4958ZM17.1359 4.69756V6.01851C17.1359 6.3831 16.8329 6.67899 16.4579 6.67899C16.083 6.67899 15.7799 6.3831 15.7799 6.01851V4.69756C15.7799 3.60513 14.8673 2.71613 13.7458 2.71613H4.25342C3.13196 2.71613 2.21934 3.60513 2.21934 4.69756V5.35804H8.32158C8.69585 5.35804 8.99961 5.65393 8.99961 6.01851C8.99961 6.3831 8.69585 6.67899 8.32158 6.67899H2.21934V12.6233C2.21934 13.7157 3.13196 14.6047 4.25342 14.6047H6.96552C7.33979 14.6047 7.64355 14.9006 7.64355 15.2652C7.64355 15.6298 7.33979 15.9257 6.96552 15.9257H4.25342C2.3841 15.9257 0.863281 14.4442 0.863281 12.6233V4.69756C0.863281 2.87662 2.3841 1.39517 4.25342 1.39517H4.93144V0.734696C4.93144 0.370112 5.2352 0.0742188 5.60947 0.0742188C5.98374 0.0742188 6.2875 0.370112 6.2875 0.734696V1.39517H11.7117V0.734696C11.7117 0.370112 12.0148 0.0742188 12.3897 0.0742188C12.7647 0.0742188 13.0678 0.370112 13.0678 0.734696V1.39517H13.7458C15.6151 1.39517 17.1359 2.87662 17.1359 4.69756Z"
-                                  fill="#005E80"
-                                />
-                              </svg>
-                            }
-                          />
+                          <div className="w-full">
+                            <Dropdown
+                              {...field}
+                              countries={countries}
+                              selected={field.value}
+                              onSelect={field.onChange}
+                            />
+                          </div>
                         )}
                       />
                     </div>
+
+                    <Controller
+                      name="employeeStatus"
+                      control={control}
+                      rules={{ required: 'Employee status is required' }}
+                      render={({ field }) => (
+                        <div className="flex flex-col gap-4 w-[182px]">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-red-600 font-semibold font-poppins">*</span>
+                            <span className="text-gray-800 font-medium font-poppins">
+                              Employee Status
+                            </span>
+                          </div>
+                          <Select
+                            options={empStatusOptions}
+                            selected={field.value}
+                            onChange={field.onChange}
+                          />
+                        </div>
+                      )}
+                    />
                   </div>
-                </div>
-                <div className="flex flex-col gap-3.5 w-[386px]">
-                  <div className="flex items-center gap-1.5">
-                    <div className="flex items-center gap-1">
-                      <span className="text-red-600 font-semibold">*</span>
-                      <span className="text-gray-800 font-medium font-poppins">Work Email</span>
+                  <div className="flex justify-start items-center flex-row gap-[44px]">
+                    <div className="flex justify-start items-center flex-row gap-5">
+                      <div className="flex flex-col gap-4 w-[183px]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-red-600 font-semibold"> *</span>
+                          <span className="text-gray-800 font-medium font-poppins">Joining Date</span>
+                        </div>
+                        <div className="relative">
+                          <Controller
+                            control={control}
+                            name="joiningDate"
+                            render={({ field }) => (
+                              <DatePicker
+                                value={field.value}
+                                onChange={field.onChange}
+                                placeholder="Select date"
+                                icon={
+                                  <svg
+                                    width="18"
+                                    height="16"
+                                    viewBox="0 0 18 16"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                  >
+                                    <path
+                                      d="M12.3897 6.70475C9.77323 6.70475 7.64355 8.77865 7.64355 11.3281C7.64355 13.863 9.77323 15.9257 12.3897 15.9257C15.0062 15.9257 17.1359 13.8518 17.1359 11.3023C17.1359 8.76742 15.0062 6.70475 12.3897 6.70475ZM12.3897 14.6047C10.5204 14.6047 8.99961 13.1345 8.99961 11.3281C8.99961 9.50715 10.5204 8.0257 12.3897 8.0257C14.2591 8.0257 15.7799 9.49592 15.7799 11.3023C15.7799 13.1233 14.2591 14.6047 12.3897 14.6047ZM13.5471 11.4958C13.8122 11.7541 13.8122 12.1715 13.5471 12.4298C13.4149 12.5586 13.2413 12.6233 13.0678 12.6233C12.8942 12.6233 12.7206 12.5586 12.5884 12.4298L11.9104 11.7693C11.7829 11.6451 11.7117 11.4774 11.7117 11.3023V9.98137C11.7117 9.61679 12.0148 9.3209 12.3897 9.3209C12.7647 9.3209 13.0678 9.61679 13.0678 9.98137V11.0289L13.5471 11.4958ZM17.1359 4.69756V6.01851C17.1359 6.3831 16.8329 6.67899 16.4579 6.67899C16.083 6.67899 15.7799 6.3831 15.7799 6.01851V4.69756C15.7799 3.60513 14.8673 2.71613 13.7458 2.71613H4.25342C3.13196 2.71613 2.21934 3.60513 2.21934 4.69756V5.35804H8.32158C8.69585 5.35804 8.99961 5.65393 8.99961 6.01851C8.99961 6.3831 8.69585 6.67899 8.32158 6.67899H2.21934V12.6233C2.21934 13.7157 3.13196 14.6047 4.25342 14.6047H6.96552C7.33979 14.6047 7.64355 14.9006 7.64355 15.2652C7.64355 15.6298 7.33979 15.9257 6.96552 15.9257H4.25342C2.3841 15.9257 0.863281 14.4442 0.863281 12.6233V4.69756C0.863281 2.87662 2.3841 1.39517 4.25342 1.39517H4.93144V0.734696C4.93144 0.370112 5.2352 0.0742188 5.60947 0.0742188C5.98374 0.0742188 6.2875 0.370112 6.2875 0.734696V1.39517H11.7117V0.734696C11.7117 0.370112 12.0148 0.0742188 12.3897 0.0742188C12.7647 0.0742188 13.0678 0.370112 13.0678 0.734696V1.39517H13.7458C15.6151 1.39517 17.1359 2.87662 17.1359 4.69756Z"
+                                      fill="#005E80"
+                                    />
+                                  </svg>
+                                }
+                              />
+                            )}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-4 w-[183px]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-red-600 font-semibold"> *</span>
+                          <span className="text-gray-800 font-medium font-poppins">DOB</span>
+                        </div>
+                        <div className="relative">
+                          <Controller
+                            control={control}
+                            name="dobDate"
+                            render={({ field }) => (
+                              <DatePicker
+                                value={field.value}
+                                onChange={field.onChange}
+                                placeholder="Select date"
+                                icon={
+                                  <svg
+                                    width="18"
+                                    height="16"
+                                    viewBox="0 0 18 16"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                  >
+                                    <path
+                                      d="M12.3897 6.70475C9.77323 6.70475 7.64355 8.77865 7.64355 11.3281C7.64355 13.863 9.77323 15.9257 12.3897 15.9257C15.0062 15.9257 17.1359 13.8518 17.1359 11.3023C17.1359 8.76742 15.0062 6.70475 12.3897 6.70475ZM12.3897 14.6047C10.5204 14.6047 8.99961 13.1345 8.99961 11.3281C8.99961 9.50715 10.5204 8.0257 12.3897 8.0257C14.2591 8.0257 15.7799 9.49592 15.7799 11.3023C15.7799 13.1233 14.2591 14.6047 12.3897 14.6047ZM13.5471 11.4958C13.8122 11.7541 13.8122 12.1715 13.5471 12.4298C13.4149 12.5586 13.2413 12.6233 13.0678 12.6233C12.8942 12.6233 12.7206 12.5586 12.5884 12.4298L11.9104 11.7693C11.7829 11.6451 11.7117 11.4774 11.7117 11.3023V9.98137C11.7117 9.61679 12.0148 9.3209 12.3897 9.3209C12.7647 9.3209 13.0678 9.61679 13.0678 9.98137V11.0289L13.5471 11.4958ZM17.1359 4.69756V6.01851C17.1359 6.3831 16.8329 6.67899 16.4579 6.67899C16.083 6.67899 15.7799 6.3831 15.7799 6.01851V4.69756C15.7799 3.60513 14.8673 2.71613 13.7458 2.71613H4.25342C3.13196 2.71613 2.21934 3.60513 2.21934 4.69756V5.35804H8.32158C8.69585 5.35804 8.99961 5.65393 8.99961 6.01851C8.99961 6.3831 8.69585 6.67899 8.32158 6.67899H2.21934V12.6233C2.21934 13.7157 3.13196 14.6047 4.25342 14.6047H6.96552C7.33979 14.6047 7.64355 14.9006 7.64355 15.2652C7.64355 15.6298 7.33979 15.9257 6.96552 15.9257H4.25342C2.3841 15.9257 0.863281 14.4442 0.863281 12.6233V4.69756C0.863281 2.87662 2.3841 1.39517 4.25342 1.39517H4.93144V0.734696C4.93144 0.370112 5.2352 0.0742188 5.60947 0.0742188C5.98374 0.0742188 6.2875 0.370112 6.2875 0.734696V1.39517H11.7117V0.734696C11.7117 0.370112 12.0148 0.0742188 12.3897 0.0742188C12.7647 0.0742188 13.0678 0.370112 13.0678 0.734696V1.39517H13.7458C15.6151 1.39517 17.1359 2.87662 17.1359 4.69756Z"
+                                      fill="#005E80"
+                                    />
+                                  </svg>
+                                }
+                              />
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-3.5 w-[386px]">
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1">
+                          <span className="text-red-600 font-semibold">*</span>
+                          <span className="text-gray-800 font-medium font-poppins">Work Email</span>
+                        </div>
+                      </div>
+                      <Input
+                        {...register('workEmail', {
+                          required: 'Work Email is required',
+                        })}
+                        leftIcon={
+                          <svg
+                            width="20"
+                            height="18"
+                            viewBox="0 0 20 18"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              clipRule="evenodd"
+                              d="M2.45148 2.70909C1.81896 3.29642 1.39535 4.24941 1.39535 5.74435V12.256C1.39535 13.7509 1.81896 14.7039 2.45148 15.2912C3.09335 15.8872 4.06044 16.2095 5.34884 16.2095H14.6512C15.9395 16.2095 16.9066 15.8872 17.5486 15.2912C18.181 14.7039 18.6047 13.7509 18.6047 12.256V5.74435C18.6047 4.24941 18.181 3.29642 17.5486 2.70909C16.9066 2.11306 15.9395 1.79086 14.6512 1.79086H5.34884C4.06044 1.79086 3.09335 2.11306 2.45148 2.70909ZM1.50201 1.68658C2.48805 0.770977 3.84654 0.395508 5.34884 0.395508H14.6512C16.1535 0.395508 17.512 0.770977 18.498 1.68658C19.4934 2.61088 20 3.98346 20 5.74435V12.256C20 14.0169 19.4934 15.3895 18.498 16.3137C17.512 17.2294 16.1535 17.6048 14.6512 17.6048H5.34884C3.84654 17.6048 2.48805 17.2294 1.50201 16.3137C0.506623 15.3895 0 14.0169 0 12.256V5.74435C0 3.98346 0.506623 2.61088 1.50201 1.68658Z"
+                              fill="#838383"
+                            />
+                            <path
+                              fillRule="evenodd"
+                              clipRule="evenodd"
+                              d="M16.8489 4.63734C17.0845 4.94223 17.0283 5.38039 16.7235 5.61598L11.5634 9.60323C10.6421 10.315 9.35639 10.315 8.43509 9.60323L3.27503 5.61598C2.97013 5.38039 2.91395 4.94223 3.14955 4.63734C3.38515 4.33243 3.8233 4.27626 4.1282 4.51186L9.28821 8.49905C9.707 8.82268 10.2915 8.82268 10.7102 8.49905L15.8703 4.51186C16.1752 4.27626 16.6133 4.33243 16.8489 4.63734Z"
+                              fill="#838383"
+                            />
+                          </svg>
+                        }
+                        placeholder="Enter your email"
+                        error={!!errors.workEmail}
+                      />
+                      {errors.workEmail && (
+                        <span className="text-sm text-red-500 font-poppins mt-[-5px]">
+                          {errors.workEmail.message}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex justify-start items-start flex-col gap-[19px] w-[182px]">
+                      <div className="flex justify-start items-center flex-row gap-1.5">
+                        <span className="text-[#EC1D42] font-sf font-semibold leading-[19.2857px]">
+                          *
+                        </span>
+                        <span className="text-[#30313D] font-medium leading-[19.2857px] font-poppins">
+                          Contact Number
+                        </span>
+                      </div>
+                      <Input
+                        {...register('contact', {
+                          required: 'Contact Number is required',
+                        })}
+                        placeholder="e.g., +66 081 091 87"
+                        error={!!errors.contact}
+                      />
+                      {errors.contact && (
+                        <span className="text-sm text-red-500 font-poppins mt-[-5px]">
+                          {errors.contact.message}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <Input
-                    {...register('workEmail', {
-                      required: 'Work Email is required',
-                    })}
-                    leftIcon={
-                      <svg
-                        width="20"
-                        height="18"
-                        viewBox="0 0 20 18"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          clipRule="evenodd"
-                          d="M2.45148 2.70909C1.81896 3.29642 1.39535 4.24941 1.39535 5.74435V12.256C1.39535 13.7509 1.81896 14.7039 2.45148 15.2912C3.09335 15.8872 4.06044 16.2095 5.34884 16.2095H14.6512C15.9395 16.2095 16.9066 15.8872 17.5486 15.2912C18.181 14.7039 18.6047 13.7509 18.6047 12.256V5.74435C18.6047 4.24941 18.181 3.29642 17.5486 2.70909C16.9066 2.11306 15.9395 1.79086 14.6512 1.79086H5.34884C4.06044 1.79086 3.09335 2.11306 2.45148 2.70909ZM1.50201 1.68658C2.48805 0.770977 3.84654 0.395508 5.34884 0.395508H14.6512C16.1535 0.395508 17.512 0.770977 18.498 1.68658C19.4934 2.61088 20 3.98346 20 5.74435V12.256C20 14.0169 19.4934 15.3895 18.498 16.3137C17.512 17.2294 16.1535 17.6048 14.6512 17.6048H5.34884C3.84654 17.6048 2.48805 17.2294 1.50201 16.3137C0.506623 15.3895 0 14.0169 0 12.256V5.74435C0 3.98346 0.506623 2.61088 1.50201 1.68658Z"
-                          fill="#838383"
-                        />
-                        <path
-                          fillRule="evenodd"
-                          clipRule="evenodd"
-                          d="M16.8489 4.63734C17.0845 4.94223 17.0283 5.38039 16.7235 5.61598L11.5634 9.60323C10.6421 10.315 9.35639 10.315 8.43509 9.60323L3.27503 5.61598C2.97013 5.38039 2.91395 4.94223 3.14955 4.63734C3.38515 4.33243 3.8233 4.27626 4.1282 4.51186L9.28821 8.49905C9.707 8.82268 10.2915 8.82268 10.7102 8.49905L15.8703 4.51186C16.1752 4.27626 16.6133 4.33243 16.8489 4.63734Z"
-                          fill="#838383"
-                        />
-                      </svg>
-                    }
-                    placeholder="Enter your email"
-                    error={!!errors.workEmail}
-                  />
-                  {errors.workEmail && (
-                    <span className="text-sm text-red-500 font-poppins mt-[-5px]">
-                      {errors.workEmail.message}
-                    </span>
-                  )}
-                </div>
-                <div className="flex justify-start items-start flex-col gap-[19px] w-[182px]">
-                  <div className="flex justify-start items-center flex-row gap-1.5">
-                    <span className="text-[#EC1D42] font-sf font-semibold leading-[19.2857px]">
-                      *
-                    </span>
-                    <span className="text-[#30313D] font-medium leading-[19.2857px] font-poppins">
-                      Contact Number
-                    </span>
-                  </div>
-                  <Input
-                    {...register('contact', {
-                      required: 'Contact Number is required',
-                    })}
-                    placeholder="e.g., +66 081 091 87"
-                    error={!!errors.contact}
-                  />
-                  {errors.contact && (
-                    <span className="text-sm text-red-500 font-poppins mt-[-5px]">
-                      {errors.contact.message}
-                    </span>
-                  )}
-                </div>
-              </div>
+                </>
+              )}
             </div>
           </div>
         </div>

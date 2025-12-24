@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../config/api';
+import { Country, Dropdown } from '../currency/components/Dropdown';
 import { showAlert } from '../../components/Alert';
 import {
     DndContext,
@@ -97,6 +98,8 @@ const DealPipeline = () => {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [countries, setCountries] = useState<Country[]>([]);
+    const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -104,10 +107,30 @@ const DealPipeline = () => {
         })
     );
 
+    useEffect(() => {
+        const fetchCountries = async () => {
+            try {
+                const response = await api.get('/api/countries');
+                const formatted = response.data.map((country: any) => ({
+                    id: country.id,
+                    name: country.name,
+                    flagSrc: country.svg_icon_url,
+                }));
+                setCountries(formatted);
+            } catch {
+                // Silent fail or show alert
+            }
+        };
+        fetchCountries();
+    }, []);
+
     const fetchDeals = async () => {
         try {
             const response = await api.get('/api/deals', {
-                params: { search: searchQuery || undefined }
+                params: {
+                    search: searchQuery || undefined,
+                    country: selectedCountry?.id || undefined
+                }
             });
             setDeals(response.data.grouped);
         } catch {
@@ -131,7 +154,7 @@ const DealPipeline = () => {
             setLoading(false);
         };
         loadData();
-    }, [searchQuery]);
+    }, [searchQuery, selectedCountry]);
 
     const handleDragStart = (event: DragStartEvent) => {
         const { active } = event;
@@ -212,6 +235,17 @@ const DealPipeline = () => {
             <div className="flex items-center justify-between px-6 py-4 bg-white border-b">
                 <div className="flex items-center gap-4">
                     <h1 className="text-2xl font-semibold text-gray-900">Deal Pipeline</h1>
+
+                    {/* Country Filter */}
+                    <div className="w-60">
+                        <Dropdown
+                            countries={countries}
+                            selected={selectedCountry}
+                            onSelect={setSelectedCountry}
+                            placeholder="Filter by Country"
+                        />
+                    </div>
+
                     {/* Search */}
                     <div className="relative">
                         <input
@@ -254,8 +288,8 @@ const DealPipeline = () => {
                                         key={code}
                                         onClick={() => setSelectedStage(isSelected ? null : code)}
                                         className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${isSelected
-                                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                                : 'hover:bg-gray-100 text-gray-700'
+                                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                            : 'hover:bg-gray-100 text-gray-700'
                                             }`}
                                     >
                                         <span className="flex items-center gap-2">
@@ -290,8 +324,8 @@ const DealPipeline = () => {
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
                                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${activeTab === tab
-                                        ? 'bg-blue-50 text-blue-700'
-                                        : 'text-gray-600 hover:bg-gray-100'
+                                    ? 'bg-blue-50 text-blue-700'
+                                    : 'text-gray-600 hover:bg-gray-100'
                                     }`}
                             >
                                 {tab === 'board' ? 'Deal Board' : tab === 'table' ? 'Table View' : 'Analysis'}

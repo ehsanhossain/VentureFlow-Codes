@@ -1,7 +1,7 @@
 # Ventureflow - Quick Deployment Guide
 
 **Version:** 1.0.0  
-**Developer:** Acquaint Technologies
+**Developer:** Legacy Script
 
 > For detailed documentation, see [DEPLOYMENT.md](DEPLOYMENT.md)
 
@@ -56,7 +56,7 @@ APP_ENV=production
 APP_DEBUG=false
 APP_URL=https://yourdomain.com
 APP_VERSION=1.0.0
-APP_DEVELOPER="Acquaint Technologies"
+APP_DEVELOPER="Legacy Script"
 
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
@@ -188,7 +188,7 @@ Expected response:
 {
     "app": "Ventureflow",
     "version": "1.0.0",
-    "developer": "Acquaint Technologies",
+    "developer": "Legacy Script",
     "laravel": "12.19.3"
 }
 ```

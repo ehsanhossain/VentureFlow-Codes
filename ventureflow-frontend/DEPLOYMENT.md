@@ -2,7 +2,7 @@
 
 **App Name:** Ventureflow  
 **Version:** 1.0.0  
-**Developed By:** Acquaint Technologies
+**Developed By:** Legacy Script
 
 ---
 
@@ -344,7 +344,7 @@ If you get 404 errors when refreshing pages in production, ensure your web serve
 
 ## Support
 
-For issues or questions, contact **Acquaint Technologies**.
+For issues or questions, contact **Legacy Script**.
 
 **Version:** 1.0.0  
 **Last Updated:** December 2025

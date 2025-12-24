@@ -14,10 +14,11 @@ type DropdownProps = {
   selected?: Country | Country[] | null;
   onSelect: (country: Country | Country[]) => void;
   multiSelect?: boolean;
+  placeholder?: string;
 };
 
 export const Dropdown = forwardRef<HTMLDivElement, DropdownProps>((
-  { countries, selected, onSelect, multiSelect = false },
+  { countries, selected, onSelect, multiSelect = false, placeholder },
   forwardedRef
 ): JSX.Element => {
   const [search, setSearch] = useState("");
@@ -129,13 +130,12 @@ export const Dropdown = forwardRef<HTMLDivElement, DropdownProps>((
         ) : (
           <div className="flex items-center gap-2 text-sm text-gray-400">
             <GlobeIcon className="w-4 h-4 text-[#828282]" />
-            {multiSelect ? "Select countries" : "Select a country"}
+            {multiSelect ? "Select countries" : placeholder || "Select a country"}
           </div>
         )}
         <svg
-          className={`w-4 h-4 ml-auto text-gray-400 transform transition-transform ${
-            isOpen ? "rotate-180" : "rotate-0"
-          }`}
+          className={`w-4 h-4 ml-auto text-gray-400 transform transition-transform ${isOpen ? "rotate-180" : "rotate-0"
+            }`}
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -153,7 +153,7 @@ export const Dropdown = forwardRef<HTMLDivElement, DropdownProps>((
       {isOpen && (
         <div className="absolute z-50 mt-1 w-full max-h-[80vh] rounded-md border border-t-0 border-slate-300 bg-white overflow-hidden shadow-lg">
           <div className="flex flex-col w-full items-start gap-4 px-4 py-3">
-          
+
             <div className="relative w-full">
               <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#828282]" />
               <input
@@ -184,11 +184,10 @@ export const Dropdown = forwardRef<HTMLDivElement, DropdownProps>((
                   </div>
                   {multiSelect && (
                     <div
-                      className={`w-5 h-5 flex items-center justify-center border rounded ${
-                        isSelected(country)
-                          ? "bg-[#064771] border-[#064771] text-white"
-                          : "border-gray-400"
-                      }`}
+                      className={`w-5 h-5 flex items-center justify-center border rounded ${isSelected(country)
+                        ? "bg-[#064771] border-[#064771] text-white"
+                        : "border-gray-400"
+                        }`}
                     >
                       {isSelected(country) && <CheckIcon className="w-4 h-4" />}
                     </div>

@@ -1,7 +1,7 @@
 # Ventureflow Backend - Deployment Documentation
 
 **Version:** 1.0.0  
-**Developer:** Acquaint Technologies  
+**Developer:** Legacy Script  
 **Framework:** Laravel 12.19.3
 
 ---
@@ -220,7 +220,7 @@ APP_KEY=
 APP_DEBUG=false
 APP_URL=https://yourdomain.com
 APP_VERSION=1.0.0
-APP_DEVELOPER="Acquaint Technologies"
+APP_DEVELOPER="Legacy Script"
 
 # Frontend URL (if applicable)
 FRONTEND_URL=https://yourdomain.com
@@ -814,11 +814,11 @@ mysqladmin -u root -p processlist
 
 ## Support & Contact
 
-**Developer:** Acquaint Technologies  
+**Developer:** Legacy Script  
 **Version:** 1.0.0  
 **Documentation Last Updated:** December 10, 2025
 
-For support and inquiries, please contact your system administrator or Acquaint Technologies support team.
+For support and inquiries, please contact your system administrator or Legacy Script support team.
 
 ---
 

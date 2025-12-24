@@ -50,6 +50,18 @@ class DealController extends Controller
             });
         }
 
+        if ($request->has('country')) {
+            $countryId = $request->country;
+            $query->where(function ($q) use ($countryId) {
+                $q->whereHas('buyer.companyOverview', function ($bco) use ($countryId) {
+                    $bco->where('hq_country', $countryId);
+                })
+                ->orWhereHas('seller.companyOverview', function ($sco) use ($countryId) {
+                    $sco->where('hq_country', $countryId);
+                });
+            });
+        }
+
         $deals = $query->orderBy('updated_at', 'desc')->get();
 
         // Group by stage
